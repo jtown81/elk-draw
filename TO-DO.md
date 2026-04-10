@@ -142,7 +142,53 @@ All core features working end-to-end:
 - ✅ Comprehensive test coverage
 - ✅ Demo data for exploration
 
-### 📋 Optional Enhancements (Phase 8+)
+### ✅ Phase 8: Docker Containerization
+- `Dockerfile` — Multi-stage build (builder + runtime)
+  - Node 20 Alpine base image
+  - pnpm for dependency management
+  - Production-ready static file server (http-server)
+  - Health check included
+- `docker-compose.yml` — Orchestration config
+  - Service name: `elk-analyzer`
+  - Port: **3456** (configurable)
+  - Automatic restart
+  - Health monitoring
+  - Isolated network
+- `.dockerignore` — Optimized build context
+  - Excludes tests, docs, node_modules, etc.
+  - Minimal image size (~100-150 MB)
+- `DOCKER.md` — Comprehensive deployment guide
+  - Quick start instructions
+  - Production considerations
+  - Kubernetes/Swarm examples
+  - Troubleshooting guide
+  - Security notes
+
+### Deployment Status
+
+**Docker Image**: `elk-analyzer:latest`
+- ✅ Successfully built and tested
+- ✅ Running on port 3456
+- ✅ Health checks passing
+- ✅ HTTP-server with GZIP enabled
+- ✅ Ready for production deployment
+
+**Commands**:
+```bash
+# Start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+
+# Access app
+http://localhost:3456
+```
+
+### 📋 Optional Enhancements (Phase 9+)
 - [ ] Unit search/filter UI in OddsTable
 - [ ] Scenario comparison (what-if analysis)
 - [ ] Charts/visualization of odds trends
@@ -151,6 +197,8 @@ All core features working end-to-end:
 - [ ] Social sharing (odds links)
 - [ ] State income tax modeling
 - [ ] Advanced filtering (min/max odds, tag count)
+- [ ] Kubernetes Helm charts
+- [ ] Container registry push (Docker Hub, ECR, etc.)
 
 ---
 

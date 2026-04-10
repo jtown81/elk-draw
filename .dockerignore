@@ -1,0 +1,40 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+pnpm-lock.yaml
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+build
+.next
+.turbo
+
+# Testing
+coverage
+.nyc_output
+tests
+
+# Development
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Documentation
+README.md
+CLAUDE.md
+TO-DO.md
+docs
+
+# Misc
+.env
+.env.local
+*.log
+*.tgz

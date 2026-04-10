@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  elk-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elk-draw-analyzer
+    ports:
+      - "3456:3456"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3456/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - hunting-network
+
+networks:
+  hunting-network:
+    driver: bridge
