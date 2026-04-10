@@ -1,0 +1,57 @@
+/**
+ * South Dakota Elk Draw Pools Configuration
+ *
+ * Pool eligibility, tag allocation, and metadata.
+ * Source: GFP Draw Statistics and OPM documentation
+ */
+
+import type { PoolKey } from '@models/draw';
+
+export interface PoolConfig {
+  label: string;      // user-friendly display name
+  minPoints: number;  // minimum preference points to qualify
+  tagPct: number;     // percentage of tags allocated to this pool (0.0–1.0)
+}
+
+/**
+ * Draw pool configurations.
+ *
+ * **Pools:**
+ * - 15+ Pool: 34% of tags (requires 15+ preference points)
+ * - 10+ Pool: 33% of tags (requires 10+ preference points)
+ * - 0+ Pool:  33% of tags (all residents, regardless of points)
+ *
+ * Note: Pool eligibility is hierarchical. A user with 15 points qualifies for
+ * the 15+ pool (not 10+ or 0+). Pool membership is determined at draw time by GFP.
+ */
+export const DRAW_POOLS: Record<PoolKey, PoolConfig> = {
+  '15plus': {
+    label: '15+ Pool',
+    minPoints: 15,
+    tagPct: 0.34,
+  },
+  '10plus': {
+    label: '10+ Pool',
+    minPoints: 10,
+    tagPct: 0.33,
+  },
+  '0plus': {
+    label: '0+ Pool',
+    minPoints: 0,
+    tagPct: 0.33,
+  },
+} as const;
+
+/**
+ * Get the pool config for a given pool key.
+ */
+export function getPoolConfig(pool: PoolKey): PoolConfig {
+  return DRAW_POOLS[pool];
+}
+
+/**
+ * Get all pools in priority order (highest min points first).
+ */
+export function getAllPoolsOrdered(): PoolKey[] {
+  return ['15plus', '10plus', '0plus'] as const;
+}
