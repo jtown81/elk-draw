@@ -158,6 +158,7 @@ export function AddRecordForm({ existingRecord, onSubmit, onCancel }: AddRecordF
   const poolLabels: Record<PoolKey, string> = {
     '15plus': '15+ Pool',
     '10plus': '10+ Pool',
+    '2plus': '2+ Pool',
     '0plus': '0+ Pool',
   };
 

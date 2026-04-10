@@ -188,7 +188,7 @@ docker compose down
 http://localhost:3456
 ```
 
-### 📋 Optional Enhancements (Phase 9+)
+### 📋 Optional Enhancements (Phase 10+)
 - [ ] Unit search/filter UI in OddsTable
 - [ ] Scenario comparison (what-if analysis)
 - [ ] Charts/visualization of odds trends
@@ -199,6 +199,232 @@ http://localhost:3456
 - [ ] Advanced filtering (min/max odds, tag count)
 - [ ] Kubernetes Helm charts
 - [ ] Container registry push (Docker Hub, ECR, etc.)
+
+---
+
+## Phase 9: GFP Draw Statistics Scraper
+
+**Goal**: Automate collection of Black Hills elk draw statistics for 2023–2025 from the South Dakota GFP website and produce JSON output compatible with the app's `DrawRecord` format for bulk import.
+
+---
+
+### Background Research
+
+**GFP Draw Statistics URL**: `https://license.gooutdoorssouthdakota.com/License/DrawStatistics`
+
+The page is **dynamic** — it uses cascading POST API endpoints, not a simple static HTML table. Data is loaded via three endpoints:
+- `GET /License/DrawStatistics/FilterDropdowns` — returns year/season/drawing/event filter options
+- `POST /License/DrawStatistics/GetDrawResults` — returns pool applicant + tag data for a hunt choice
+- `POST /License/DrawStatistics/GetDrawPreferences` — returns preference point distribution
+
+**Parameters** (POST body):
+```json
+{
+  "Year": 2024,
+  "PhaseCategoryID": <elk category ID>,
+  "PhaseID": <drawing phase ID>,
+  "EventID": <hunt event ID>
+}
+```
+
+**Hunt Code Format**: `[Unit][Code]` where:
+- Hunt codes ending in `21` = "ONE ANY ELK"
+- Hunt codes ending in `23` = "ONE ANTLERLESS ELK"
+- Example: `H1A21` = H1A Any Elk, `H1A23` = H1A Antlerless Elk
+
+**Pool Data Returned**: Tags available per pool (15+, 10+, 0+), applicants per pool, lowest preference point drawn per pool.
+
+---
+
+### Phase 9.1 — API Investigation Script
+
+**File**: `scripts/gfp-explore.mjs`
+
+A throwaway exploration script to discover the correct parameter IDs needed for the main scraper.
+
+**Tasks**:
+- [ ] Fetch `/License/DrawStatistics` and log all form option values (year IDs, season IDs, phase IDs)
+- [ ] Identify the correct `PhaseCategoryID` for elk season
+- [ ] Identify the correct `PhaseID` for each drawing period (First, Second, etc.)
+- [ ] Make a test POST to `GetDrawResults` with one known unit+year to observe the response structure
+- [ ] Log raw JSON response shape — identify which fields contain:
+  - Tags available (by pool)
+  - Applicants (by pool)
+  - Lowest preference point drawn (by pool)
+  - Pool label/identifier (15+, 10+, 0+)
+- [ ] Make a test POST to `GetDrawPreferences` and log response shape
+- [ ] Document all field names and IDs in `scripts/README.md`
+
+**Run**:
+```bash
+node scripts/gfp-explore.mjs
+```
+
+---
+
+### Phase 9.2 — Main Scraper Script
+
+**File**: `scripts/gfp-scrape.mjs`
+
+A Node.js scraper using built-in `fetch` (Node 18+, no external dependencies).
+
+**Target Data**:
+- **Years**: 2023, 2024, 2025
+- **Regions**: Black Hills only (20 units: H1A, H1B, H2A, H2B, H2E, H3A, H3B, H3C, H3D, H3E, H4A, H4B, H5, H6A, H6B, H11A, H11B, H11C, H11D, H11E)
+- **Tag Types**: `any_elk` (hunt code `21`) and `antlerless` (hunt code `23`)
+- **Pools**: All three pools (15+, 10+, 0+) per record where available
+
+**Algorithm**:
+```
+1. Fetch FilterDropdowns → parse year IDs, season IDs, phase IDs
+2. For each year in [2023, 2024, 2025]:
+   a. Select year → fetch season options (filter for "Black Hills Elk - First Application Period")
+   b. Select elk season → fetch drawing phase options (filter for main draw, not re-issue)
+   c. Select drawing phase → fetch hunt event options
+   d. For each Black Hills unit (H1A ... H11E):
+      i.  Find EventID for [unit]21 (any elk) — POST GetDrawResults
+      ii. Find EventID for [unit]23 (antlerless) — POST GetDrawResults
+      iii. Parse pool rows: tags, applicants, lowest point drawn
+      iv. Map pool labels to PoolKey ('15plus', '10plus', '0plus')
+      v.  Build DrawRecord object
+3. Collect all records → write output/gfp-draw-data.json
+4. Print summary: records per year, units found, units missing
+```
+
+**Output JSON format** (importable directly into the app):
+```json
+[
+  {
+    "id": "scraped-H1A-2024-any_elk",
+    "unitName": "H1A",
+    "year": 2024,
+    "tagType": "any_elk",
+    "pools": [
+      { "pool": "15plus", "tagsAvailable": 10, "applicants": 450, "lowestPointDrawn": 15 },
+      { "pool": "10plus", "tagsAvailable": 10, "applicants": 820, "lowestPointDrawn": 11 },
+      { "pool": "0plus",  "tagsAvailable": 10, "applicants": 3200, "lowestPointDrawn": 9 }
+    ],
+    "notes": "Scraped from GFP 2026-04-10",
+    "addedDate": "2026-04-10T00:00:00.000Z",
+    "updatedDate": "2026-04-10T00:00:00.000Z"
+  }
+]
+```
+
+**Error Handling**:
+- Skip units where no data is found for that year/tag type (not all units are offered every year)
+- Log skipped units with reason
+- Continue scraping even if individual units fail
+- Retry on HTTP errors (3 attempts, 1s delay)
+
+**Rate Limiting**:
+- Add 300ms delay between requests to avoid overloading GFP servers
+
+**Run**:
+```bash
+node scripts/gfp-scrape.mjs
+# Output: scripts/output/gfp-draw-data-YYYY-MM-DD.json
+```
+
+---
+
+### Phase 9.3 — Output & Validation
+
+**File**: `scripts/gfp-validate.mjs`
+
+Validates the scraped JSON before app import.
+
+**Checks**:
+- [ ] Valid `unitName` (must be in ELK_UNITS.blackHills list)
+- [ ] Valid `year` (2023, 2024, 2025)
+- [ ] Valid `tagType` (`any_elk` or `antlerless`)
+- [ ] Each record has at least one pool entry
+- [ ] No duplicate unit+year+tagType combos
+- [ ] Numeric fields are positive integers
+- [ ] `lowestPointDrawn` is null or 0–25
+- [ ] Print coverage report: which units/years have data, which are missing
+
+**Run**:
+```bash
+node scripts/gfp-validate.mjs scripts/output/gfp-draw-data-YYYY-MM-DD.json
+```
+
+---
+
+### Phase 9.4 — Static Seed Data
+
+Once validated, bake the scraped data into the app as a seed fixture.
+
+**File**: `src/data/seed-draw-data.ts`
+
+```typescript
+// Auto-generated by gfp-scrape.mjs — do not edit manually
+// Source: GFP Draw Statistics, scraped 2026-04-10
+// Coverage: Black Hills elk, any_elk + antlerless, 2023–2025
+
+import type { DrawRecord } from '@models/draw';
+
+export const SEED_DRAW_DATA: Omit<DrawRecord, 'id' | 'addedDate' | 'updatedDate'>[] = [
+  // ... all scraped records
+];
+```
+
+**Integration**:
+- Update `src/data/demo-fixture.ts` to use `SEED_DRAW_DATA` as its source
+- Update `DataEntryTab.tsx` to offer a "Load GFP Data" button that seeds all records
+- Add note in UI: "Pre-loaded with GFP official draw statistics (2023–2025)"
+
+---
+
+### Phase 9.5 — Future Automation (Optional)
+
+- [ ] Add `pnpm scrape` command to `package.json` for annual re-scraping
+- [ ] GitHub Actions workflow to run scraper each spring (April) and open PR with updated data
+- [ ] Support scraping prairie units and CSP in addition to Black Hills
+
+---
+
+### File Structure for Phase 9
+
+```
+scripts/
+  gfp-explore.mjs      — API discovery (run once to find param IDs)
+  gfp-scrape.mjs       — Main scraper (run annually)
+  gfp-validate.mjs     — Validates output JSON before import
+  README.md            — Documents GFP API structure + how to run
+  output/
+    .gitkeep
+    gfp-draw-data-YYYY-MM-DD.json   (git-ignored, generated output)
+src/data/
+  seed-draw-data.ts    — Baked-in draw data from most recent scrape (committed)
+```
+
+### Scraper Dependencies (Zero External)
+
+- **Fetch API** — built-in Node 18+ (no axios needed)
+- **fs/path** — built-in (file output)
+- **No npm packages needed**
+
+### Acceptance Criteria
+
+- [ ] `scripts/gfp-explore.mjs` successfully logs GFP API structure
+- [ ] `scripts/gfp-scrape.mjs` produces valid JSON for all 20 Black Hills units × 3 years × 2 tag types = up to 120 records
+- [ ] `scripts/gfp-validate.mjs` passes on the output with no errors
+- [ ] Data matches manually spot-checked values from GFP website
+- [ ] JSON is importable into the app without modification
+- [ ] `src/data/seed-draw-data.ts` created with all validated data
+- [ ] "Load GFP Data" button in app works correctly
+
+---
+
+### Notes & Risks
+
+1. **Dynamic page**: GFP uses POST APIs, not static HTML — simple `curl` won't work. Node.js `fetch` handles this correctly.
+2. **Session/cookies**: The GFP site may require cookies/session tokens. If POST requests fail with 401/403, Puppeteer/Playwright will be needed as fallback.
+3. **Parameter IDs change**: PhaseCategoryID and PhaseID may change year-to-year. The explore script should be run first each year to verify IDs.
+4. **Not all units available every year**: Some units may be closed for a given season. Scraper must handle gracefully.
+5. **Data is resident-only**: No need to handle non-resident pools — all SD elk is resident-only.
+6. **Re-issue draws**: Exclude re-issue/second application periods — use only "First Application Period" (main draw) for consistent data.
 
 ---
 

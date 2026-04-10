@@ -5,7 +5,7 @@
  */
 
 export type TagType = 'any_elk' | 'antlerless';
-export type PoolKey = '15plus' | '10plus' | '0plus';
+export type PoolKey = '15plus' | '10plus' | '2plus' | '0plus';
 
 /**
  * A user account for managing elk draw data.

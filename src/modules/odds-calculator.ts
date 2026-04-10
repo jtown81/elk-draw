@@ -70,6 +70,7 @@ export function calcAvgEntriesForPool(pool: PoolKey): number {
   const midpoints = {
     '15plus': 17,
     '10plus': 12,
+    '2plus': 3,
     '0plus': 5,
   };
   return calcEntries(midpoints[pool]);

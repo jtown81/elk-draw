@@ -16,6 +16,7 @@ type TabName = 'odds' | 'data';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabName>('odds');
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const {
     accounts,
     activeUserId,
@@ -41,6 +42,22 @@ export default function App() {
 
   // Show onboarding if no accounts exist
   if (accounts.length === 0) {
+    const handleCreateAccount = () => {
+      const name = prompt('Enter your name or nickname:');
+      if (name?.trim()) {
+        setIsCreatingAccount(true);
+        try {
+          const account = createAccount(name.trim());
+          console.log('Account created successfully:', account);
+        } catch (error) {
+          console.error('Failed to create account:', error);
+          alert('Failed to create account. Please try again.');
+        } finally {
+          setIsCreatingAccount(false);
+        }
+      }
+    };
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full mx-4">
@@ -49,15 +66,11 @@ export default function App() {
             South Dakota hunting odds calculator for preference point holders.
           </p>
           <button
-            onClick={() => {
-              const name = prompt('Enter your name:');
-              if (name?.trim()) {
-                createAccount(name.trim());
-              }
-            }}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            onClick={handleCreateAccount}
+            disabled={isCreatingAccount}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
-            Create Account
+            {isCreatingAccount ? 'Creating...' : 'Create Account'}
           </button>
           <p className="text-xs text-gray-400 text-center mt-4">
             Your data stays on your device. No accounts needed.

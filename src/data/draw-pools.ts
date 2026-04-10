@@ -35,6 +35,11 @@ export const DRAW_POOLS: Record<PoolKey, PoolConfig> = {
     minPoints: 10,
     tagPct: 0.33,
   },
+  '2plus': {
+    label: '2+ Pool',
+    minPoints: 2,
+    tagPct: 0.0,  // tag pct varies by unit; 0 is a safe placeholder
+  },
   '0plus': {
     label: '0+ Pool',
     minPoints: 0,
@@ -53,5 +58,5 @@ export function getPoolConfig(pool: PoolKey): PoolConfig {
  * Get all pools in priority order (highest min points first).
  */
 export function getAllPoolsOrdered(): PoolKey[] {
-  return ['15plus', '10plus', '0plus'] as const;
+  return ['15plus', '10plus', '2plus', '0plus'] as const;
 }

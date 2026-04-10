@@ -22,6 +22,7 @@ export function UserInputPanel({ userId }: UserInputPanelProps) {
   const poolLabels = {
     '15plus': '15+ Pool',
     '10plus': '10+ Pool',
+    '2plus': '2+ Pool',
     '0plus': '0+ Pool',
   };
 

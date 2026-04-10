@@ -2,14 +2,50 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## 🚀 Quick Reference: Where to Work
+
+**Always check where you are before running commands:**
+
+```bash
+pwd  # Should show: /home/jpl/app-dev/hunting
+```
+
+**Never run commands in `/home/jpl/app-dev/` directly.** Always `cd` into `hunting/` first.
+
+---
+
+## ⚠️ SCOPE RESTRICTION — STRICTLY ENFORCED
+
+This project directory is completely independent. Never cross project boundaries.
+
+When working in this directory:
+- **Work ONLY in `hunting/`** — never navigate to parent directories
+- **Never modify files in sibling project directories** (e.g., `retire-app/`, `fishing/`, `cabin/`, `3peaks/`, `brand/`, `leave-app/`, `bhss/`)
+- **Run all commands from `hunting/`** — never run commands in workspace root `/home/jpl/app-dev/`
+- **Make all git commits in this project's repo** — `hunting/.git` (independent from workspace root)
+- **Never cross-import between projects** — each project has its own dependencies and version constraints
+
+---
+
 ## Project Overview
 
 **South Dakota Elk Draw Analyzer** — Interactive tool for analyzing elk hunting draw odds with 11 preference points. Two distinct implementations:
 
 - **CLI** (`analyzer.mcp.js`) — Standalone Node.js terminal app (zero dependencies, no build)
 - **Web App** (`src/`) — React + TypeScript web interface (Vite dev server + production build)
+- **Docker** — Containerized production deployment (port 3456)
 
 ## Quick Start
+
+### Using build.sh (Recommended)
+
+```bash
+./build.sh
+```
+
+Interactive menu with 13 build scenarios.
 
 ### CLI (Standalone Node.js)
 
@@ -23,12 +59,40 @@ Runs immediately, no setup needed. Data saves to `elk-draw-data.json`.
 
 ```bash
 pnpm install                # install dependencies (first time only)
-pnpm dev                    # dev server at http://localhost:3333
+pnpm dev                    # dev server at http://localhost:3456
 pnpm build                  # production build to dist/
 pnpm preview                # preview production build
 pnpm test                   # run tests
 pnpm test:watch             # run tests in watch mode
 pnpm typecheck              # TypeScript type check (no emit)
+```
+
+### Docker (Production)
+
+```bash
+docker compose up -d        # Start container
+docker compose logs -f      # View logs
+docker compose down         # Stop container
+```
+
+App available at: http://localhost:3456
+
+## Build Scenarios (build.sh)
+
+```
+1. Development Server (with hot reload)
+2. Production Build Only
+3. Production Build + Preview
+4. Run All Tests
+5. Run Tests (watch mode)
+6. Type Check
+7. Clean Build (delete dist/ and rebuild)
+8. Full Build Pipeline (test + typecheck + build)
+9. Full Build Pipeline + Start Server
+10. Docker: Build Image
+11. Docker: Start Container (docker compose up)
+12. Docker: Stop Container (docker compose down)
+13. Docker: View Logs
 ```
 
 ## Architecture
@@ -49,28 +113,26 @@ pnpm typecheck              # TypeScript type check (no emit)
 - Tailwind CSS 4 for styling
 - Vitest 1 for unit tests
 - Builds to `dist/` for production
-- Dev server runs on `http://localhost:3333`
+- Dev server runs on `http://localhost:3456`
 
 ### Why Two Implementations?
 
 - **CLI** — For quick offline analysis without any setup (useful for hunting trips)
 - **Web** — For enhanced UI, cross-platform access, offline persistence via localStorage
+- **Docker** — For production deployment, consistent environment, health checks
 
 ## Key Features
 
-- Interactive menu-driven interface
+- Interactive menu-driven interface (CLI) and React UI (Web)
 - Cubed preference points calculation: (11+1)³ = 1,728 entries
 - Odds calculation: (1,728 ÷ Total Applicants) × 100
-- Data persistence to JSON
+- Multi-user account management with localStorage isolation
+- Data persistence to JSON (CLI) and localStorage (Web)
 - Export/import functionality
 - Top 5 recommendations
 - Color-coded terminal output (CLI)
-- Responsive web interface
-
-## Data Files
-
-- `elk-draw-data.json` - Stores unit data and statistics
-- Format: JSON array of unit entries
+- Responsive web interface (desktop, tablet, mobile)
+- Docker containerization with health checks
 
 ## Directory Structure
 
@@ -87,9 +149,9 @@ hunting/
     App.tsx             — Main React component
     main.tsx            — Vite entry point
     index.css           — Global styles
-  tests/                — Vitest unit tests
+  tests/                — Vitest unit tests (30 tests)
   analyzer.mcp.js       — CLI tool (standalone, no build needed)
-  elk-draw-data.json    — CLI data persistence
+  elk-draw-data.json    — CLI data persistence (git-ignored)
   index.html            — Web app HTML shell
   vite.config.ts        — Vite build config
   vitest.config.ts      — Vitest config
@@ -97,38 +159,28 @@ hunting/
   tailwind.config.js    — Tailwind CSS config
   postcss.config.js     — PostCSS config
   package.json          — Dependencies and scripts
+  docker-compose.yml    — Docker Compose configuration
+  Dockerfile            — Multi-stage production build
+  .dockerignore         — Build context optimization
+  build.sh              — Interactive build script
+  DOCKER.md             — Deployment guide
+  DOCKER-REGISTRY.md    — Registry setup (ghcr.io)
 ```
 
-## Menu System (CLI)
+## Data Format
 
+```json
+{
+  "id": 1234567890,
+  "unitName": "H1A",
+  "year": 2026,
+  "tags": 30,
+  "apps10Plus": 4320,
+  "lowestPoint": 11,
+  "odds": 40.00,
+  "addedDate": "2026-01-15T10:20:00.000Z"
+}
 ```
-[1] Add Unit Data - Interactive data entry
-[2] View All Data - Display all entries
-[3] Calculate & Results - Ranked analysis
-[4] Show Recommendations - Top 5 units
-[5] Delete Unit - Remove entry
-[6] Export Data - Save to JSON
-[7] Import Data - Load from JSON
-[8] Clear All Data - Reset everything
-[9] Help - Help menu
-[0] Exit - Close application
-```
-
-## Draw System Knowledge
-
-- **User**: 11 South Dakota elk preference points
-- **Pool**: 10+ Preference Point Pool (33% of tags)
-- **Entries**: 1,728 lottery entries
-- **Competitiveness**: Only competes with other 10+ point holders
-- **Formula**: User Odds % = 1,728 ÷ [10+ Applicants] × 100
-
-## Elk Units (Supported)
-
-**Black Hills**: H1A, H1B, H2A, H2B, H2E, H3A, H3B, H3C, H3D, H3E, H4A, H4B, H5, H6A, H6B, H11A, H11B, H11C, H11D, H11E
-
-**Prairie**: 9A, 11A, 11B, 15A, 15B, 27A, 27B
-
-**CSP**: CSP
 
 ## Core Concepts
 
@@ -148,33 +200,54 @@ hunting/
 - Can export/import JSON files
 
 **Web**:
-- Uses browser localStorage under `hunting:` namespace
-- Syncs with same JSON structure as CLI for compatibility
+- Uses browser localStorage under `sd-elk:` namespace
+- Multi-user support with per-user data isolation
+- Per-user keys: `sd-elk:accounts`, `sd-elk:draw-records:{userId}`, `sd-elk:user-config:{userId}`
 
-## Data Format
+## Elk Units (Supported)
 
-```json
-{
-  "id": 1234567890,
-  "unitName": "H1A",
-  "year": 2026,
-  "tags": 30,
-  "apps10Plus": 4320,
-  "lowestPoint": 11,
-  "odds": 40.00,
-  "addedDate": "2026-01-15T10:20:00.000Z"
-}
-```
+**Black Hills**: H1A, H1B, H2A, H2B, H2E, H3A, H3B, H3C, H3D, H3E, H4A, H4B, H5, H6A, H6B, H11A, H11B, H11C, H11D, H11E
+
+**Prairie**: 9A, 11A, 11B, 15A, 15B, 27A, 27B
+
+**CSP**: CSP
 
 ## Testing
 
 Run tests locally:
 
 ```bash
-pnpm test              # Run all tests once
+pnpm test              # Run all tests once (30 tests)
 pnpm test:watch        # Run tests in watch mode
 pnpm typecheck         # Check TypeScript types
 ```
+
+Test Coverage:
+- **Unit Tests** (14): odds-calculator functions, edge cases
+- **Hook Tests** (10): localStorage persistence, account isolation
+- **Integration Tests** (6): end-to-end workflows, tag filtering
+
+## Docker Deployment
+
+### Quick Start
+```bash
+docker compose up -d
+# App available at http://localhost:3456
+```
+
+### Configuration
+- **Port**: 3456 (configurable in docker-compose.yml)
+- **Health Check**: Automatic, every 30 seconds
+- **Restart Policy**: Auto-restart unless stopped
+
+### Image Details
+- **Base**: Node 20 Alpine
+- **Build**: Multi-stage (builder + runtime)
+- **Size**: ~100-150 MB
+- **Registry**: `ghcr.io/jtown81/elk-draw`
+- **Tags**: `latest`, `v1.0.0`
+
+See `DOCKER.md` and `DOCKER-REGISTRY.md` for detailed deployment instructions.
 
 ## External Resources
 
@@ -182,51 +255,64 @@ pnpm typecheck         # Check TypeScript types
 - **Preference Points Info**: https://gfp.sd.gov/preference-points/
 - **Elk Information**: https://gfp.sd.gov/elk/
 - **GFP Support**: 605-223-7660
+- **GitHub Repository**: https://github.com/jtown81/elk-draw
+- **GitHub Container Registry**: ghcr.io/jtown81/elk-draw
 
 ## Workspace Context
 
-This project is part of the `/home/jpl/app-dev/` workspace. Other projects:
-- `retire-app/` - Retirement planning simulator
+This project is part of the `/home/jpl/app-dev/` workspace. Other independent projects:
+- `retire-app/` - Retirement planning simulator (workspace root git owner)
 - `leave-app/` - Federal leave tracker
 - `fishing/` - Tournament PWA
 - `3peaks/` - Production templates
 - `cabin/` - Expense tracker
+- `bhss/` - BHSS app
 - `brand/` - Brand assets
 
-**Important**: Work only in this directory. Never cross project boundaries.
+**IMPORTANT**: Work only in this directory. Never cross project boundaries or modify sibling projects.
 
 ## Git
 
-- Git repo: `hunting/.git` (separate from workspace root)
-- Remote: (configure as needed)
-- Run git commands from `hunting/` directory
+- Git repo: `hunting/.git` (completely separate from workspace root)
+- Remote: `https://github.com/jtown81/elk-draw`
+- Run all git commands from `hunting/` directory only
+- Commits are independent from workspace root
 
 ## Common Tasks
 
-### Start CLI
-
+### Development
 ```bash
-node analyzer.mcp.js
+./build.sh                  # Interactive menu (recommended)
+pnpm dev                    # Start dev server (http://localhost:3456)
+pnpm test:watch             # Run tests in watch mode
 ```
 
-### Start Web Dev Server
-
+### Production Build
 ```bash
-pnpm dev
+pnpm build                  # Build for production
+pnpm preview                # Preview production build locally
 ```
 
-Then open `http://localhost:3333` in your browser.
-
-### Build for Production
-
+### Docker Deployment
 ```bash
-pnpm build
+docker compose up -d        # Start container
+docker compose logs -f      # View live logs
+docker compose down         # Stop container
 ```
 
-Output goes to `dist/` directory. Deploy statically to any web server.
+### Testing & Quality
+```bash
+pnpm test                   # Run all 30 tests
+pnpm typecheck              # Type check
+pnpm build                  # Full production build
+```
 
-### Quick Manual Testing
+## Design Principles
 
-**CLI**: Add a unit, calculate odds, verify results save to `elk-draw-data.json`
-
-**Web**: Add a unit, refresh page, verify data persists (check browser DevTools → Application → LocalStorage)
+- **Multi-user support**: Each user's data isolated in localStorage
+- **Pure functional calculations**: Deterministic, testable odds engine
+- **Real-time reactivity**: User preference changes trigger instant recalculation
+- **Component memoization**: Performance optimization for large tables
+- **Stateless architecture**: No backend required, perfect for offline use
+- **Container portability**: Docker multi-stage build for minimal image
+- **Responsive design**: Mobile-first UI for all devices
