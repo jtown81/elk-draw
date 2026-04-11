@@ -15,6 +15,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleResolution": "bundler",
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@components/*": ["src/components/*"],

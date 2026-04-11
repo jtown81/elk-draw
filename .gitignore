@@ -9,6 +9,7 @@ dist/
 build/
 .turbo/
 .next/
+src/**/*.js
 
 # Development
 .vscode/
