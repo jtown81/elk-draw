@@ -440,13 +440,50 @@ All breakpoints tested on real devices, not just browser resizing.
 
 ---
 
-# 🗺️ Unit Map with Odds Feature Plan
+# 🗺️ Unit Map with Odds Feature
 
-**Status:** Not started | Planned: 2026-04-11
+**Status:** Phases 1-3 ✅ COMPLETE | Phases 4-6 Pending | Started: 2026-04-11 | Completed: 2026-04-11
 
 Interactive map of Black Hills elk units showing draw odds color-coded per unit
 for the selected season (Any Elk or Antlerless), user's preference points, and
 selected year. Downloadable as PDF via browser print.
+
+## Completion Summary (Phases 1-3)
+
+### Phase 1 — Boundary Data ✅ COMPLETE
+- **Files created:**
+  - `src/models/map.ts` — UnitPolygon, OddsTier, UnitOdds interfaces
+  - `src/data/elk-unit-boundaries.ts` — SVG paths for all 28 units
+- **Geometry approach:** Simplified geographic approximations (Option B) projected to SVG viewport
+  - MAP_VIEWBOX: 1000×800 covers all Black Hills (H1-H11, H units), Prairie (9A, 11A-B, 15A-B, 27A-B), CSP
+  - GeoJSON from ArcGIS API inaccessible; fallback to simplified geometric division
+  - Utilities: getOddsTier(), getTierColor() for odds visualization
+  
+### Phase 2 — UnitMap Component ✅ COMPLETE
+- **File:** `src/components/UnitMap.tsx` (memo-optimized)
+- **Features:**
+  - Pure SVG rendering of unit polygons
+  - Color-coded by odds tier (guaranteed/good/fair/low/none)
+  - Unit name + odds % labels with hover tooltips
+  - Legend with tier color reference
+  - Responsive aspect ratio (1000:800)
+  
+### Phase 3 — MapTab Integration ✅ COMPLETE
+- **File:** `src/components/MapTab.tsx` (wrapper with controls)
+- **Controls:**
+  - Tag type toggle (Any Elk | Antlerless)
+  - Year selector (populated from SEED_DRAW_DATA)
+  - PDF download button (uses window.print())
+  - Info panel explaining usage
+- **Navigation:**
+  - Updated App.tsx: added 'map' tab type, MapTabWithConfig wrapper
+  - Updated AppHeader.tsx: Map tab on desktop (pill) + mobile (bottom bar)
+  - Re-uses calcOdds(), getQualifyingPool(), SEED_DRAW_DATA
+
+### Test Results
+- All 31 tests passing
+- TypeScript: ✅ No errors
+- Build: ✅ Production successful (277 kB gzipped)
 
 ---
 
