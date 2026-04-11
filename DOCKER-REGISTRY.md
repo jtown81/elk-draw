@@ -70,11 +70,35 @@ docker push jtown81/elk-draw:latest
 docker push jtown81/elk-draw:v1.0.0
 ```
 
+## Quick Start (Updated)
+
+Use the enhanced `build.sh` script to build and push images:
+
+```bash
+# Option 1: Build and push in one step (requires Docker login)
+./build.sh
+# Select option 11: Docker: Build + Tag + Push to ghcr.io
+
+# Option 2: Build only, push later
+./build.sh
+# Select option 10: Docker: Build Image
+# Then later:
+./build.sh
+# Select option 12: Docker: Push latest to ghcr.io
+
+# Option 3: Manual commands
+docker compose build
+docker login ghcr.io
+docker push ghcr.io/jtown81/elk-draw:latest
+docker push ghcr.io/jtown81/elk-draw:v$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+```
+
 ## Current Status
 
 - ✅ Code pushed to GitHub: https://github.com/jtown81/elk-draw
-- ✅ Docker image tagged for ghcr.io
-- ⏳ Docker image push: Waiting for authentication
+- ✅ Docker image tagged for ghcr.io in docker-compose.yml
+- ✅ build.sh updated with registry push commands
+- ⏳ Docker image push: Ready (requires GitHub PAT authentication)
 
 ## Automated Builds (GitHub Actions)
 

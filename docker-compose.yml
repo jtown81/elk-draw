@@ -2,9 +2,12 @@ version: '3.8'
 
 services:
   elk-analyzer:
+    image: ghcr.io/jtown81/elk-draw:latest
     build:
       context: .
       dockerfile: Dockerfile
+      tags:
+        - ghcr.io/jtown81/elk-draw:latest
     container_name: elk-draw-analyzer
     ports:
       - "3456:3456"

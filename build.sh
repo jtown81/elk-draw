@@ -26,18 +26,22 @@ show_menu() {
     echo "  7) Clean Build (delete dist/ and rebuild)"
     echo "  8) Full Build Pipeline (test + typecheck + build)"
     echo "  9) Full Build Pipeline + Start Server"
+    echo ""
+    echo "  Docker:"
     echo " 10) Docker: Build Image"
-    echo " 11) Docker: Start Container (docker compose up)"
-    echo " 12) Docker: Stop Container (docker compose down)"
-    echo " 13) Docker: View Logs"
+    echo " 11) Docker: Build + Tag + Push to ghcr.io"
+    echo " 12) Docker: Push latest to ghcr.io (after manual build)"
+    echo " 13) Docker: Start Container (docker compose up)"
+    echo " 14) Docker: Stop Container (docker compose down)"
+    echo " 15) Docker: View Logs"
     echo ""
     echo "  Git:"
-    echo " 14) Git: Commit (stage all + prompt for message)"
-    echo " 15) Git: Commit + Push"
+    echo " 16) Git: Commit (stage all + prompt for message)"
+    echo " 17) Git: Commit + Push"
     echo ""
-    echo " 16) Exit"
+    echo " 18) Exit"
     echo ""
-    read -p "Enter your choice (1-16): " choice
+    read -p "Enter your choice (1-18): " choice
 }
 
 # Function to run dev server
@@ -188,6 +192,96 @@ docker_logs() {
     docker compose logs -f
 }
 
+# Function to build and push Docker image to ghcr.io
+docker_build_and_push() {
+    echo ""
+    echo "Building Docker image and pushing to ghcr.io..."
+    echo ""
+
+    # Check if logged in to ghcr.io
+    if ! docker info | grep -q "Username:"; then
+        echo "⚠️  Not logged in to Docker registry"
+        echo ""
+        echo "To authenticate with GitHub Container Registry:"
+        echo "  1. Create a Personal Access Token at: https://github.com/settings/tokens"
+        echo "     Required scopes: write:packages, read:packages, delete:packages"
+        echo ""
+        echo "  2. Login with:"
+        echo "     echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_USERNAME --password-stdin"
+        echo ""
+        read -p "Continue without authentication? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborted."
+            return 1
+        fi
+    fi
+
+    # Build with registry tags
+    echo "[1/2] Building Docker image..."
+    docker compose build
+    echo "✓ Docker image built!"
+    echo ""
+
+    # Get version from package.json or use 'latest'
+    VERSION="latest"
+    if [ -f "package.json" ]; then
+        VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+    fi
+
+    echo "[2/2] Tagging and pushing to ghcr.io..."
+    echo "  - ghcr.io/jtown81/elk-draw:latest"
+    echo "  - ghcr.io/jtown81/elk-draw:v${VERSION}"
+    echo ""
+
+    # Tag and push
+    docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}
+    docker push ghcr.io/jtown81/elk-draw:latest
+    docker push ghcr.io/jtown81/elk-draw:v${VERSION}
+
+    echo ""
+    echo "================================"
+    echo "✓ Docker image published to ghcr.io!"
+    echo "================================"
+    echo "  Latest: ghcr.io/jtown81/elk-draw:latest"
+    echo "  Version: ghcr.io/jtown81/elk-draw:v${VERSION}"
+    echo ""
+    echo "Pull the image with:"
+    echo "  docker pull ghcr.io/jtown81/elk-draw:latest"
+}
+
+# Function to push existing Docker image to ghcr.io
+docker_push() {
+    echo ""
+    echo "Pushing Docker image to ghcr.io..."
+    echo ""
+
+    # Check if logged in
+    if ! docker info | grep -q "Username:"; then
+        echo "⚠️  Not logged in to Docker registry"
+        echo "Please run: docker login ghcr.io"
+        return 1
+    fi
+
+    # Get version
+    VERSION="latest"
+    if [ -f "package.json" ]; then
+        VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+    fi
+
+    echo "Pushing to ghcr.io..."
+    echo "  - ghcr.io/jtown81/elk-draw:latest"
+    echo "  - ghcr.io/jtown81/elk-draw:v${VERSION}"
+    echo ""
+
+    docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}
+    docker push ghcr.io/jtown81/elk-draw:latest
+    docker push ghcr.io/jtown81/elk-draw:v${VERSION}
+
+    echo ""
+    echo "✓ Docker image pushed to ghcr.io!"
+}
+
 # Function to commit all staged changes
 git_commit() {
     echo ""
@@ -248,27 +342,33 @@ case $choice in
         docker_build
         ;;
     11)
-        docker_start
+        docker_build_and_push
         ;;
     12)
-        docker_stop
+        docker_push
         ;;
     13)
-        docker_logs
+        docker_start
         ;;
     14)
-        git_commit
+        docker_stop
         ;;
     15)
-        git_commit_and_push
+        docker_logs
         ;;
     16)
+        git_commit
+        ;;
+    17)
+        git_commit_and_push
+        ;;
+    18)
         echo ""
         echo "Goodbye!"
         exit 0
         ;;
     *)
-        echo "Invalid choice. Please enter a number between 1-16."
+        echo "Invalid choice. Please enter a number between 1-18."
         exit 1
         ;;
 esac
