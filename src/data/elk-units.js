@@ -7,11 +7,13 @@
 export const ELK_UNITS = {
     blackHills: [
         'H1A', 'H1B',
-        'H2A', 'H2B', 'H2E',
-        'H3A', 'H3B', 'H3C', 'H3D', 'H3E',
+        'H2A', 'H2B', 'H2C', 'H2D', 'H2E', 'H2F', 'H2G', 'H2H', 'H2I', 'H2J',
+        'H3A', 'H3B', 'H3C', 'H3D', 'H3E', 'H3F', 'H3G',
         'H4A', 'H4B',
-        'H5',
+        'H5A',
         'H6A', 'H6B',
+        'H7A', 'H7B',
+        'H9A', 'H9B',
         'H11A', 'H11B', 'H11C', 'H11D', 'H11E',
     ],
     prairie: [

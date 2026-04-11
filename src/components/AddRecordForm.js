@@ -120,6 +120,7 @@ export function AddRecordForm({ existingRecord, onSubmit, onCancel }) {
     const poolLabels = {
         '15plus': '15+ Pool',
         '10plus': '10+ Pool',
+        '2plus': '2+ Pool',
         '0plus': '0+ Pool',
     };
     return (_jsxs("form", { onSubmit: handleSubmit, className: "space-y-6", children: [_jsxs("div", { className: "space-y-4", children: [_jsx("h4", { className: "font-semibold text-gray-900", children: "Basic Info" }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Unit Name *" }), _jsxs("select", { value: formState.unitName, onChange: e => {

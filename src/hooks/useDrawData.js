@@ -1,56 +1,30 @@
 /**
- * Multi-User Draw Data Persistence Hook
+ * Draw Data Hook
  *
- * Manages CRUD operations for draw records, scoped per user account.
- * All data is stored in localStorage under user-specific keys.
+ * Provides draw records from scraped GFP seed data.
+ * Records are always loaded from the bundled seed — no localStorage persistence.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { SEED_DRAW_DATA } from '@data/seed-draw-data';
 /**
- * Hook for managing draw records for a specific user.
+ * Hook for accessing draw records for a specific user.
  *
- * @param userId The user account ID to load/save data for
- * @returns Draw data management interface
+ * @param userId The user account ID
+ * @returns Draw data interface
  */
 export function useDrawData(userId) {
     const [records, setRecords] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    // Generate storage key for this user
-    const getStorageKey = useCallback(() => {
-        return userId ? `sd-elk:draw-records:${userId}` : null;
-    }, [userId]);
-    // Load from localStorage on mount or when userId changes
+    // Always initialize from seed data — draw statistics come from scrapes, not user input
     useEffect(() => {
-        const key = getStorageKey();
-        if (!key) {
+        if (!userId) {
             setRecords([]);
             setIsLoading(false);
             return;
         }
-        try {
-            const stored = localStorage.getItem(key);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                setRecords(parsed);
-            }
-            else {
-                setRecords([]);
-            }
-        }
-        catch (error) {
-            console.error(`Failed to load draw data for user ${userId}:`, error);
-            setRecords([]);
-        }
+        setRecords(SEED_DRAW_DATA);
         setIsLoading(false);
-    }, [userId, getStorageKey]);
-    // Persist records whenever they change
-    useEffect(() => {
-        if (!isLoading) {
-            const key = getStorageKey();
-            if (key) {
-                localStorage.setItem(key, JSON.stringify(records));
-            }
-        }
-    }, [records, isLoading, getStorageKey]);
+    }, [userId]);
     /**
      * Add a new draw record.
      */
