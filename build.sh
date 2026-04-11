@@ -17,8 +17,8 @@ echo ""
 show_menu() {
     echo "Select a build scenario:"
     echo ""
-    echo "  1) Development Server (with hot reload)"
-    echo "  2) Kill Dev Server (port 3456)"
+    echo "  1) Development Server (with hot reload, kills existing instances)"
+    echo "  2) Kill All Instances (vite + any port)"
     echo "  3) Production Build Only"
     echo "  4) Production Build + Preview"
     echo "  5) Run All Tests"
@@ -48,6 +48,25 @@ show_menu() {
 # Function to run dev server
 run_dev() {
     echo ""
+    echo "Checking for existing instances..."
+
+    # Kill any existing instances first
+    for port in 3456 3457 3458 3459 3460; do
+        PID=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$PID" ]; then
+            kill -9 $PID 2>/dev/null || true
+            echo "⚠️  Killed process on port $port"
+        fi
+    done
+
+    # Also kill any vite/node processes for this app
+    pkill -f "vite" 2>/dev/null || true
+
+    echo "✓ Cleared existing instances"
+    echo ""
+    echo "Ensuring latest dependencies..."
+    pnpm install
+    echo ""
     echo "Starting development server on port 3456..."
     echo "Visit: http://localhost:3456"
     echo ""
@@ -57,17 +76,31 @@ run_dev() {
 # Function to kill dev server
 kill_dev_server() {
     echo ""
-    echo "Killing development server on port 3456..."
+    echo "Killing all instances of Elk Draw Analyzer..."
 
-    # Try to kill process on port 3456
-    PID=$(lsof -ti:3456)
-    if [ -z "$PID" ]; then
-        echo "⚠️  No process found on port 3456"
+    local found=0
+
+    # Kill vite processes by name (catches any port)
+    if pkill -f "vite" 2>/dev/null; then
+        echo "✓ Killed vite process(es)"
+        found=1
+    fi
+
+    # Also try to kill processes on ports 3456-3460 (in case app is running on alternate port)
+    for port in 3456 3457 3458 3459 3460; do
+        PID=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$PID" ]; then
+            kill -9 $PID 2>/dev/null || true
+            echo "✓ Killed process on port $port (PID: $PID)"
+            found=1
+        fi
+    done
+
+    if [ $found -eq 0 ]; then
+        echo "⚠️  No instances of app found running"
         return 1
     fi
 
-    kill -9 $PID 2>/dev/null
-    echo "✓ Killed process $PID on port 3456"
     echo ""
 }
 
@@ -84,9 +117,23 @@ run_build() {
 # Function to build and preview
 run_build_and_preview() {
     echo ""
+    echo "Ensuring latest dependencies..."
+    pnpm install
+    echo ""
     echo "Building for production..."
     pnpm build
     echo "✓ Production build complete!"
+    echo ""
+    echo "Checking for existing instances..."
+    for port in 3456 3457 3458 3459 3460; do
+        PID=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$PID" ]; then
+            kill -9 $PID 2>/dev/null || true
+            echo "⚠️  Killed process on port $port"
+        fi
+    done
+    pkill -f "vite" 2>/dev/null || true
+    echo "✓ Cleared existing instances"
     echo ""
     echo "Starting preview server on port 3456..."
     echo "Visit: http://localhost:3456"
@@ -140,17 +187,22 @@ run_full_pipeline() {
     echo "Starting full build pipeline..."
     echo ""
 
-    echo "[1/3] Running tests..."
+    echo "[0/4] Ensuring latest dependencies..."
+    pnpm install
+    echo "✓ Dependencies up to date"
+    echo ""
+
+    echo "[1/4] Running tests..."
     pnpm test
     echo "✓ Tests passed"
     echo ""
 
-    echo "[2/3] Type checking..."
+    echo "[2/4] Type checking..."
     pnpm typecheck
     echo "✓ Type check passed"
     echo ""
 
-    echo "[3/3] Building for production..."
+    echo "[3/4] Building for production..."
     pnpm build
     echo "✓ Production build complete"
     echo ""
@@ -164,6 +216,17 @@ run_full_pipeline() {
 # Function to run full pipeline and start server
 run_full_pipeline_and_serve() {
     run_full_pipeline
+    echo ""
+    echo "Checking for existing instances..."
+    for port in 3456 3457 3458 3459 3460; do
+        PID=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$PID" ]; then
+            kill -9 $PID 2>/dev/null || true
+            echo "⚠️  Killed process on port $port"
+        fi
+    done
+    pkill -f "vite" 2>/dev/null || true
+    echo "✓ Cleared existing instances"
     echo ""
     echo "Starting preview server on port 3456..."
     echo "Visit: http://localhost:3456"
