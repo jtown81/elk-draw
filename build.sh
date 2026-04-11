@@ -273,6 +273,58 @@ docker_logs() {
     docker compose logs -f
 }
 
+# Check if authenticated to ghcr.io
+check_ghcr_auth() {
+    # Try to verify credentials by attempting to access ghcr.io
+    if docker pull ghcr.io/jtown81/elk-draw:latest 2>&1 | grep -q "authentication required"; then
+        return 1
+    fi
+    return 0
+}
+
+# Interactive login helper
+prompt_ghcr_login() {
+    echo ""
+    echo "================================"
+    echo "GitHub Container Registry Login"
+    echo "================================"
+    echo ""
+    echo "You need to authenticate with ghcr.io to push images."
+    echo ""
+    echo "Steps:"
+    echo "  1. Go to: https://github.com/settings/tokens"
+    echo "  2. Click 'Generate new token (classic)'"
+    echo "  3. Name it: 'Docker Registry Access'"
+    echo "  4. Select scopes:"
+    echo "     - write:packages"
+    echo "     - read:packages"
+    echo "     - delete:packages"
+    echo "  5. Generate and copy the token"
+    echo ""
+    read -p "Enter your GitHub username: " username
+    if [ -z "$username" ]; then
+        echo "❌ Username cannot be empty"
+        return 1
+    fi
+
+    read -sp "Paste your GitHub Personal Access Token (PAT): " token
+    echo ""
+    if [ -z "$token" ]; then
+        echo "❌ Token cannot be empty"
+        return 1
+    fi
+
+    echo ""
+    echo "Attempting to login to ghcr.io..."
+    if echo "$token" | docker login ghcr.io -u "$username" --password-stdin 2>&1; then
+        echo "✓ Successfully logged in to ghcr.io!"
+        return 0
+    else
+        echo "❌ Login failed. Check your username and token."
+        return 1
+    fi
+}
+
 # Function to build and push Docker image to ghcr.io
 docker_build_and_push() {
     echo ""
@@ -280,27 +332,30 @@ docker_build_and_push() {
     echo ""
 
     # Check if logged in to ghcr.io
-    if ! docker info | grep -q "Username:"; then
-        echo "⚠️  Not logged in to Docker registry"
+    if ! check_ghcr_auth; then
+        echo "⚠️  Not authenticated with GitHub Container Registry"
         echo ""
-        echo "To authenticate with GitHub Container Registry:"
-        echo "  1. Create a Personal Access Token at: https://github.com/settings/tokens"
-        echo "     Required scopes: write:packages, read:packages, delete:packages"
-        echo ""
-        echo "  2. Login with:"
-        echo "     echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_USERNAME --password-stdin"
-        echo ""
-        read -p "Continue without authentication? (y/n) " -n 1 -r
+        read -p "Would you like to login now? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Aborted."
+            echo "Aborted. You can login manually with:"
+            echo "  docker login ghcr.io"
+            return 1
+        fi
+
+        if ! prompt_ghcr_login; then
+            echo "Login cancelled. Aborting push."
             return 1
         fi
     fi
 
     # Build with registry tags
+    echo ""
     echo "[1/2] Building Docker image..."
-    docker compose build
+    if ! docker compose build; then
+        echo "❌ Docker build failed"
+        return 1
+    fi
     echo "✓ Docker image built!"
     echo ""
 
@@ -315,10 +370,25 @@ docker_build_and_push() {
     echo "  - ghcr.io/jtown81/elk-draw:v${VERSION}"
     echo ""
 
-    # Tag and push
-    docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}
-    docker push ghcr.io/jtown81/elk-draw:latest
-    docker push ghcr.io/jtown81/elk-draw:v${VERSION}
+    # Tag and push with error handling
+    if ! docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}; then
+        echo "❌ Failed to tag image"
+        return 1
+    fi
+
+    if ! docker push ghcr.io/jtown81/elk-draw:latest; then
+        echo "❌ Failed to push latest tag"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  - Verify you're logged in: docker info"
+        echo "  - Re-login if needed: docker logout ghcr.io && docker login ghcr.io"
+        return 1
+    fi
+
+    if ! docker push ghcr.io/jtown81/elk-draw:v${VERSION}; then
+        echo "❌ Failed to push version tag"
+        return 1
+    fi
 
     echo ""
     echo "================================"
@@ -337,11 +407,22 @@ docker_push() {
     echo "Pushing Docker image to ghcr.io..."
     echo ""
 
-    # Check if logged in
-    if ! docker info | grep -q "Username:"; then
-        echo "⚠️  Not logged in to Docker registry"
-        echo "Please run: docker login ghcr.io"
-        return 1
+    # Check if logged in to ghcr.io
+    if ! check_ghcr_auth; then
+        echo "⚠️  Not authenticated with GitHub Container Registry"
+        echo ""
+        read -p "Would you like to login now? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborted. You can login manually with:"
+            echo "  docker login ghcr.io"
+            return 1
+        fi
+
+        if ! prompt_ghcr_login; then
+            echo "Login cancelled. Aborting push."
+            return 1
+        fi
     fi
 
     # Get version
@@ -350,14 +431,30 @@ docker_push() {
         VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
     fi
 
+    echo ""
     echo "Pushing to ghcr.io..."
     echo "  - ghcr.io/jtown81/elk-draw:latest"
     echo "  - ghcr.io/jtown81/elk-draw:v${VERSION}"
     echo ""
 
-    docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}
-    docker push ghcr.io/jtown81/elk-draw:latest
-    docker push ghcr.io/jtown81/elk-draw:v${VERSION}
+    if ! docker tag ghcr.io/jtown81/elk-draw:latest ghcr.io/jtown81/elk-draw:v${VERSION}; then
+        echo "❌ Failed to tag image"
+        return 1
+    fi
+
+    if ! docker push ghcr.io/jtown81/elk-draw:latest; then
+        echo "❌ Failed to push latest tag"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  - Verify you're logged in: docker info"
+        echo "  - Re-login if needed: docker logout ghcr.io && docker login ghcr.io"
+        return 1
+    fi
+
+    if ! docker push ghcr.io/jtown81/elk-draw:v${VERSION}; then
+        echo "❌ Failed to push version tag"
+        return 1
+    fi
 
     echo ""
     echo "✓ Docker image pushed to ghcr.io!"
