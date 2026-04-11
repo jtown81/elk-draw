@@ -29,7 +29,11 @@ describe('calcEntries', () => {
 });
 
 describe('getQualifyingPool', () => {
-  it('returns 15plus for 15+ points', () => {
+  // Pool ranges per GFP: https://gfp.sd.gov/preference-points/
+  // Black Hills elk: 10+ (30% tags), 2+ (15% tags), 0+ (5% tags)
+  // CSP elk: 15+ (34%), 10+ (33%), 0+ (33%)
+
+  it('returns 15plus for 15+ points (CSP pool)', () => {
     expect(getQualifyingPool(15)).toBe('15plus');
     expect(getQualifyingPool(20)).toBe('15plus');
     expect(getQualifyingPool(25)).toBe('15plus');
@@ -41,23 +45,32 @@ describe('getQualifyingPool', () => {
     expect(getQualifyingPool(14)).toBe('10plus');
   });
 
-  it('returns 0plus for 0–9 points', () => {
+  it('returns 2plus for 2–9 points (GFP-defined pool boundary)', () => {
+    expect(getQualifyingPool(2)).toBe('2plus');
+    expect(getQualifyingPool(5)).toBe('2plus');
+    expect(getQualifyingPool(9)).toBe('2plus');
+  });
+
+  it('returns 0plus for 0–1 points', () => {
     expect(getQualifyingPool(0)).toBe('0plus');
-    expect(getQualifyingPool(5)).toBe('0plus');
-    expect(getQualifyingPool(9)).toBe('0plus');
+    expect(getQualifyingPool(1)).toBe('0plus');
   });
 });
 
 describe('calcAvgEntriesForPool', () => {
+  // Midpoints based on GFP pool ranges: 15+ (15–25), 10+ (10–14), 2+ (2–9), 0+ (0–1)
   it('returns pool midpoint average entries', () => {
     const avg15plus = calcAvgEntriesForPool('15plus');
-    expect(avg15plus).toBe(calcEntries(17)); // (17+1)³ = 5,832
+    expect(avg15plus).toBe(calcEntries(17)); // midpoint of 15–25: (17+1)³ = 5,832
 
     const avg10plus = calcAvgEntriesForPool('10plus');
-    expect(avg10plus).toBe(calcEntries(12)); // (12+1)³ = 2,197
+    expect(avg10plus).toBe(calcEntries(12)); // midpoint of 10–14: (12+1)³ = 2,197
+
+    const avg2plus = calcAvgEntriesForPool('2plus');
+    expect(avg2plus).toBe(calcEntries(5)); // midpoint of 2–9: (5+1)³ = 216
 
     const avg0plus = calcAvgEntriesForPool('0plus');
-    expect(avg0plus).toBe(calcEntries(5)); // (5+1)³ = 216
+    expect(avg0plus).toBe(calcEntries(0)); // midpoint of 0–1: (0+1)³ = 1
   });
 });
 
@@ -66,30 +79,31 @@ describe('calcOdds', () => {
     // 11 pts → (12)³ = 1,728 user entries
     // 10+ pool avg ≈ 2,197 entries per applicant
     // For 4,320 applicants: 4,320 × 2,197 = 9,489,840 total entries
-    // Odds: (1,728 / 9,489,840) × 100 ≈ 0.018%
-    const odds = calcOdds(11, '10plus', 4320);
-    expect(odds).toBeCloseTo(0.0182, 4);
+    // 30 tags available
+    // Odds: (1,728 × 30 / 9,489,840) × 100 ≈ 0.5462%
+    const odds = calcOdds(11, '10plus', 4320, 30);
+    expect(odds).toBeCloseTo(0.5462, 3);
   });
 
-  it('returns 0 for no applicants', () => {
-    expect(calcOdds(11, '10plus', 0)).toBe(0);
+  it('returns 100% for no applicants', () => {
+    expect(calcOdds(11, '10plus', 0, 30)).toBe(100);
   });
 
   it('caps odds at 100%', () => {
-    const odds = calcOdds(25, '15plus', 1);
+    const odds = calcOdds(25, '15plus', 1, 20);
     expect(odds).toBeLessThanOrEqual(100);
   });
 
   it('scales with fewer applicants (better odds)', () => {
-    const oddsHighApplicants = calcOdds(11, '10plus', 4320);
-    const oddsLowApplicants = calcOdds(11, '10plus', 1000);
+    const oddsHighApplicants = calcOdds(11, '10plus', 4320, 30);
+    const oddsLowApplicants = calcOdds(11, '10plus', 1000, 30);
     expect(oddsLowApplicants).toBeGreaterThan(oddsHighApplicants);
   });
 
   it('increases with more user points (same pool)', () => {
-    const odds10pts = calcOdds(10, '10plus', 4320);
-    const odds11pts = calcOdds(11, '10plus', 4320);
-    const odds14pts = calcOdds(14, '10plus', 4320);
+    const odds10pts = calcOdds(10, '10plus', 4320, 30);
+    const odds11pts = calcOdds(11, '10plus', 4320, 30);
+    const odds14pts = calcOdds(14, '10plus', 4320, 30);
     expect(odds11pts).toBeGreaterThan(odds10pts);
     expect(odds14pts).toBeGreaterThan(odds11pts);
   });

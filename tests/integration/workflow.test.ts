@@ -81,12 +81,12 @@ describe('Complete User Workflow', () => {
     const pool = getQualifyingPool(config.preferencePoints);
     expect(pool).toBe('10plus');
 
-    const odds = calcOdds(config.preferencePoints, pool, 4320);
+    const odds = calcOdds(config.preferencePoints, pool, 4320, 30);
     expect(odds).toBeGreaterThan(0);
-    expect(odds).toBeLessThan(1); // Should be low odds for ~0.01%
+    expect(odds).toBeLessThan(1); // ~0.55%
 
-    // Odds should be approximately 0.018%
-    expect(odds).toBeCloseTo(0.0182, 3);
+    // Odds should be approximately 0.546%
+    expect(odds).toBeCloseTo(0.546, 2);
   });
 
   it('adds multiple units and filters by tag type', () => {
@@ -193,7 +193,7 @@ describe('Complete User Workflow', () => {
 
     // Calculate initial odds
     let pool = getQualifyingPool(config.preferencePoints);
-    let odds = calcOdds(config.preferencePoints, pool, 4320);
+    let odds = calcOdds(config.preferencePoints, pool, 4320, 30);
     const oddsAt11Points = odds;
 
     // User updates to 15 points
@@ -203,7 +203,7 @@ describe('Complete User Workflow', () => {
     // Recalculate odds
     pool = getQualifyingPool(config.preferencePoints);
     expect(pool).toBe('15plus'); // Should move to higher pool
-    odds = calcOdds(config.preferencePoints, pool, 4320);
+    odds = calcOdds(config.preferencePoints, pool, 4320, 20);
     const oddsAt15Points = odds;
 
     // At 15 points, user has more entries but higher pool competitiveness
@@ -256,8 +256,8 @@ describe('Complete User Workflow', () => {
     localStorage.setItem(`sd-elk:draw-records:${userId}`, JSON.stringify(records));
 
     // Calculate odds for each year
-    const odds2024 = calcOdds(11, '10plus', 4320);
-    const odds2023 = calcOdds(11, '10plus', 3200);
+    const odds2024 = calcOdds(11, '10plus', 4320, 30);
+    const odds2023 = calcOdds(11, '10plus', 3200, 30);
 
     // Fewer applicants = better odds
     expect(odds2023).toBeGreaterThan(odds2024);
@@ -281,22 +281,22 @@ describe('Complete User Workflow', () => {
   it('validates odds calculations against known values', () => {
     // Test against real GFP example: H1A 2024 10+ pool with 11 points
     // Real data: 30 tags, 4320 applicants, user has 11 points (1,728 entries)
-    // Formula: (1,728 / (4,320 × 2,197 avg)) × 100 ≈ 0.018%
+    // Formula: (1,728 × 30 / (4,320 × 2,197 avg)) × 100 ≈ 0.546%
 
-    const odds = calcOdds(11, '10plus', 4320);
+    const odds = calcOdds(11, '10plus', 4320, 30);
 
-    // Should be approximately 0.018%
-    expect(odds).toBeCloseTo(0.0182, 3);
+    // Should be approximately 0.546%
+    expect(odds).toBeCloseTo(0.546, 2);
 
     // Test with different applicant counts
-    const oddsHighCompetition = calcOdds(11, '10plus', 10000);
-    const oddsLowCompetition = calcOdds(11, '10plus', 1000);
+    const oddsHighCompetition = calcOdds(11, '10plus', 10000, 30);
+    const oddsLowCompetition = calcOdds(11, '10plus', 1000, 30);
 
     // More applicants = lower odds
     expect(oddsHighCompetition).toBeLessThan(oddsLowCompetition);
 
     // Test with more preference points
-    const odds15Pts = calcOdds(15, '15plus', 4320);
+    const odds15Pts = calcOdds(15, '15plus', 4320, 20);
     expect(odds15Pts).toBeGreaterThan(0);
   });
 });

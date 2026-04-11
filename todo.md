@@ -435,3 +435,684 @@ Update seed file each season; no manual user entry needed.
 
 **Responsive-first design** — base styles are mobile (< 640px), enhanced upward.
 All breakpoints tested on real devices, not just browser resizing.
+
+---
+
+---
+
+# 🗺️ Unit Map with Odds Feature Plan
+
+**Status:** Not started | Planned: 2026-04-11
+
+Interactive map of Black Hills elk units showing draw odds color-coded per unit
+for the selected season (Any Elk or Antlerless), user's preference points, and
+selected year. Downloadable as PDF via browser print.
+
+---
+
+## Background & Research
+
+### Boundary Data Source
+GFP hosts an ArcGIS Experience app for elk hunting units:
+- Antlerless Black Hills: https://experience.arcgis.com/experience/bfdaf6908845480a88781302af47505b/page/Antlerless-Black-Hills
+- Any Elk (same app, different page)
+
+The SD GFP GIS server (`gfpgis.sd.gov/arcgis/rest/services/`) is public but most
+folders return empty services. One confirmed public layer was found via search:
+`gfpgis.sd.gov/arcgis/rest/services/Wildlife/HuntPlanner_layers/FeatureServer/12`
+(Prairie Firearm Elk, layer 12). The backing FeatureServer URL for Black Hills units
+must be discovered by inspecting network requests in the ArcGIS Experience app.
+
+GFP also publishes official PDF maps each season:
+- Antlerless: `gfp.sd.gov/UserDocs/nav/PRO_2022-2023__Black_Hills_Antlerless_Elk_Map.pdf`
+- Any Elk: `gfp.sd.gov/UserDocs/nav/PRO_2022-2023_Black_Hills_Any_Elk_Map.pdf`
+
+These PDFs are the authoritative fallback if the REST service is inaccessible.
+
+### Technical Approach
+- **Map rendering:** Pure SVG (no external map library — keeps bundle < 300 kB)
+- **Unit geometry:** GeoJSON polygons projected to SVG viewport coordinates
+- **PDF export:** `window.print()` with `@media print` CSS — zero dependencies
+- **Odds wiring:** Re-use existing `calcOdds()`, `getQualifyingPool()`, `SEED_DRAW_DATA`
+
+---
+
+## Phase 1 — Obtain Unit Boundary Geometry (Gating Step)
+
+All other phases can be built in parallel, but the map is empty without polygon data.
+Two options; try Option A first.
+
+### Option A — ArcGIS FeatureServer (preferred)
+
+1. Open the GFP ArcGIS Experience app in Chrome with DevTools → Network tab open:
+   https://experience.arcgis.com/experience/bfdaf6908845480a88781302af47505b
+
+2. Filter network requests for `/FeatureServer/` or `/query`. Note all feature service URLs
+   that return polygon data for elk units.
+
+3. Once the FeatureServer URL is found, query it for all features in GeoJSON format:
+   ```
+   <serviceUrl>/query?f=geojson&where=1%3D1&outFields=*&returnGeometry=true
+   ```
+
+4. Confirm the response contains unit name fields matching our codes (H1A, H2A, etc.)
+   and Polygon geometry for each unit.
+
+5. Save the raw GeoJSON response to a file. Run it through a coordinate simplification
+   step (e.g., `topojson` CLI or `mapshaper`) to reduce file size before bundling.
+
+6. Store the simplified GeoJSON as `src/data/elk-unit-boundaries.geojson`
+   and create a typed wrapper `src/data/elk-unit-boundaries.ts`:
+   ```ts
+   import rawBoundaries from './elk-unit-boundaries.geojson';
+   export const ELK_UNIT_BOUNDARIES: GeoJSON.FeatureCollection = rawBoundaries;
+   ```
+
+### Option B — Trace from Official GFP PDF Maps (fallback)
+
+If Option A's FeatureServer is restricted or requires authentication:
+
+1. Download both official GFP PDF maps (Any Elk and Antlerless, links above).
+
+2. Open each PDF in Inkscape (free) or import to Figma/Illustrator.
+
+3. Trace unit boundary polygons and export as SVG. Assign each path an `id` matching
+   the unit code (e.g., `id="H2A"`).
+
+4. Extract the SVG `d` path string for each unit and store in:
+   ```ts
+   // src/data/elk-unit-boundaries.ts
+   export const UNIT_SVG_PATHS: Record<string, string> = {
+     'H1A': 'M 412.3 88.1 L 430.2 ...',
+     'H2A': 'M 280.5 120.3 L ...',
+     // ...
+   };
+   // Also store the viewBox that all paths are relative to
+   export const MAP_VIEWBOX = '0 0 800 600';
+   ```
+
+5. Option B produces one set of paths for Any Elk units and a separate set for
+   Antlerless units (GFP publishes them on separate maps).
+
+### Geometry Data Specification
+
+Regardless of which option is used, produce a structure compatible with this interface:
+
+```ts
+// src/models/map.ts (new file)
+export interface UnitPolygon {
+  unitName: string;        // matches DrawRecord.unitName exactly
+  tagType: TagType;        // 'any_elk' | 'antlerless'
+  region: 'blackHills' | 'prairie' | 'csp';
+  path: string;            // SVG path 'd' attribute string (projected to map viewBox)
+  labelX: number;          // x coordinate for unit label centroid
+  labelY: number;          // y coordinate for unit label centroid
+}
+```
+
+If using the GeoJSON route (Option A), a build-time projection step converts
+GeoJSON lat/lng coordinates to the SVG viewBox coordinate system using a
+South Dakota-appropriate projection (e.g., Albers USA or Lambert Conformal Conic).
+This projection can be done once via a small Node script and the output SVG paths
+baked into the bundle — no runtime d3/proj4 needed.
+
+---
+
+## Phase 2 — Data Model & Boundary File
+
+**New file:** `src/models/map.ts`
+
+```ts
+import type { TagType } from './draw';
+
+export interface UnitPolygon {
+  unitName: string;
+  tagType: TagType;
+  region: 'blackHills' | 'prairie' | 'csp';
+  path: string;          // SVG path 'd' string, relative to MAP_VIEWBOX
+  labelX: number;        // centroid X for label placement
+  labelY: number;        // centroid Y for label placement
+}
+
+export type OddsTier = 'guaranteed' | 'good' | 'fair' | 'low' | 'none';
+
+export interface UnitOdds {
+  unitName: string;
+  oddsPercent: number;
+  tier: OddsTier;
+  tagsAvailable: number;
+  applicants: number;
+  lowestPointDrawn: number | null;
+  hasData: boolean;
+}
+```
+
+**New file:** `src/data/elk-unit-boundaries.ts`
+- Contains the `UnitPolygon[]` array for all units
+- `MAP_VIEWBOX` string constant (e.g. `'0 0 900 700'`)
+- Separate exports for any-elk units and antlerless units (they appear on different
+  GFP maps and may have different geographic extents in the PDF fallback)
+
+**New utility in `src/modules/odds-calculator.ts`:**
+
+```ts
+/**
+ * Classify an odds percentage into a display tier.
+ * Mirrors the color scheme used in OddsTable.
+ */
+export function getOddsTier(oddsPercent: number, hasData: boolean): OddsTier {
+  if (!hasData) return 'none';
+  if (oddsPercent >= 100) return 'guaranteed';
+  if (oddsPercent >= 5) return 'good';
+  if (oddsPercent >= 2) return 'fair';
+  return 'low';
+}
+```
+
+---
+
+## Phase 3 — UnitMap Component
+
+**New file:** `src/components/UnitMap.tsx`
+
+Pure SVG component. No external map library. Accepts pre-calculated odds and renders
+color-filled unit polygons.
+
+### Props
+```ts
+interface UnitMapProps {
+  tagType: TagType;
+  year: number;
+  userPoints: number;
+  id?: string;           // for print targeting (default: 'unit-map')
+}
+```
+
+### Rendering logic
+1. Load `UNIT_POLYGONS` (filtered by `tagType`) from `elk-unit-boundaries.ts`
+2. Load `SEED_DRAW_DATA` and calculate odds per unit:
+   - Match records by `unitName`, `tagType`, `year`
+   - Determine qualifying pool via `getQualifyingPool(userPoints)`
+   - Call `calcOdds(userPoints, pool, poolData.applicants, poolData.tagsAvailable)`
+   - Classify tier via `getOddsTier()`
+3. Render `<svg viewBox={MAP_VIEWBOX} ...>`:
+   - One `<path>` per unit, filled by tier color
+   - Thin border between units using `--color-border`
+   - Unit name label (`<text>`) centered at `labelX, labelY` in Oswald font
+   - Odds percentage label below unit name (Bebas Neue, larger)
+   - Subtle drop shadow on hovered unit
+
+### Tier color mapping
+```ts
+const TIER_COLORS: Record<OddsTier, string> = {
+  guaranteed: '#e8a542',   // gold  — 100% (more tags than applicants)
+  good:       '#e8a542',   // gold  — ≥5%
+  fair:       '#c97d28',   // amber — 2–5%
+  low:        '#c0392b',   // danger red — <2%
+  none:       '#1e2e1a',   // surface-2 — no data for selected year
+};
+```
+
+### Hover tooltip
+On SVG `<path>` hover (`onMouseEnter`/`onMouseLeave`), show a dark surface card
+positioned near the cursor with:
+- Unit name (Oswald, large)
+- Odds % (Bebas Neue, colored)
+- Tags available / Applicants count
+- Lowest point drawn (or "—" if null/unknown)
+- Year label
+
+On mobile, tap the unit to show/dismiss the tooltip.
+
+### Map furniture (always visible, important for PDF)
+- **Title:** "SD ELK DRAW ODDS — [ANY ELK | ANTLERLESS] [YEAR]" in Bebas Neue
+- **Subtitle:** "[USER_POINTS] Preference Points · [POOL_NAME] Pool"
+- **Legend:** Four colored squares with labels (Guaranteed, ≥5% Good, 2–5% Fair, <2% Low, No Data)
+- **Attribution:** "Draw statistics: SD GFP (license.gooutdoorssouthdakota.com)"
+- **North arrow:** Simple inline SVG compass rose (no asset needed)
+
+---
+
+## Phase 4 — MapTab Component
+
+**New file:** `src/components/MapTab.tsx`
+
+Wrapper tab that owns the controls and renders `<UnitMap>`.
+
+### Layout
+```
+[ HEADER: "UNIT ODDS MAP" ]
+[ AD: banner ]
+[ CONTROLS ROW ]
+  [ Tag Type: [ANY ELK] [ANTLERLESS] segmented toggle ]
+  [ Year: [2023] [2024] [2025] pill group ]
+  [ ↓ DOWNLOAD PDF  (amber ghost button, right-aligned) ]
+[ UNIT MAP SVG (full width, responsive) ]
+[ AD: leaderboard ]
+```
+
+### Controls
+- **Tag type toggle** — same segmented control pattern as UserInputPanel
+  (reads from `useUserConfig` so it stays in sync with My Odds tab preferences)
+- **Year selector** — pill buttons for each year present in seed data (2023, 2024, 2025)
+  Default: most recent year in seed data
+- **Download PDF button** — calls `handlePrintPdf()`
+
+### PDF download
+```ts
+const handlePrintPdf = () => {
+  // Set document title so PDF filename is meaningful
+  const titleBefore = document.title;
+  document.title = `SD-Elk-Odds_${tagType === 'any_elk' ? 'AnyElk' : 'Antlerless'}_${year}_${userPoints}pts`;
+  window.print();
+  document.title = titleBefore;
+};
+```
+
+The print CSS (added to `src/index.css`) hides everything except the map SVG:
+```css
+@media print {
+  header, nav, .map-controls, [data-ad-slot],
+  .mobile-bottom-nav, .print-hide {
+    display: none !important;
+  }
+
+  #unit-map {
+    width: 100%;
+    max-width: 100%;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  /* Force SVG fills to print — some browsers strip colors in print mode */
+  svg path { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+```
+
+---
+
+## Phase 5 — Navigation Integration
+
+**Files:** `src/App.tsx`, `src/components/AppHeader.tsx`
+
+### `App.tsx`
+1. Add `'map'` to `TabName` type:
+   ```ts
+   type TabName = 'odds' | 'data' | 'map';
+   ```
+2. Import `MapTab` and render it:
+   ```tsx
+   {activeTab === 'map' && activeUserId && (
+     <MapTab userId={activeUserId} />
+   )}
+   ```
+
+### `AppHeader.tsx` — Desktop
+Add a third pill button between "MY ODDS" and "DATA":
+```tsx
+<button role="tab" aria-selected={activeTab === 'map'} ...>
+  Map
+</button>
+```
+
+### `AppHeader.tsx` — Mobile bottom nav
+Add a third segment (divider + button):
+```tsx
+<div className="w-px bg-border" />
+<button role="tab" aria-selected={activeTab === 'map'} ...>
+  Map
+  {activeTab === 'map' && <div className="absolute bottom-0 ..." />}
+</button>
+```
+
+Note: three equal-width tabs on a 375px phone gives each tab 125px — wide enough
+at 56px height to meet the 44×44px touch target requirement.
+
+---
+
+## Phase 6 — Tests
+
+**New file:** `tests/unit/map.test.ts`
+
+```ts
+describe('getOddsTier', () => {
+  it('returns guaranteed for 100% odds', () => ...);
+  it('returns good for odds >= 5%', () => ...);
+  it('returns fair for odds 2–5%', () => ...);
+  it('returns low for odds < 2%', () => ...);
+  it('returns none when hasData is false', () => ...);
+});
+```
+
+No tests needed for `UnitMap` or `MapTab` rendering (UI-only, covered by manual
+visual testing). The odds calculation itself is already tested in `odds-calculator.test.ts`.
+
+---
+
+## Affected Files Summary
+
+| File | Action |
+|------|--------|
+| `src/models/map.ts` | **New** — `UnitPolygon`, `OddsTier`, `UnitOdds` types |
+| `src/data/elk-unit-boundaries.ts` | **New** — SVG path data for all units (output of Phase 1) |
+| `src/modules/odds-calculator.ts` | **Add** — `getOddsTier()` utility function |
+| `src/components/UnitMap.tsx` | **New** — SVG map component with odds overlay |
+| `src/components/MapTab.tsx` | **New** — Tab wrapper with controls and PDF download |
+| `src/App.tsx` | **Edit** — add `'map'` to TabName, render MapTab |
+| `src/components/AppHeader.tsx` | **Edit** — add Map tab to desktop nav and mobile bottom bar |
+| `src/index.css` | **Edit** — add `@media print` rules for PDF export |
+| `tests/unit/map.test.ts` | **New** — `getOddsTier()` unit tests |
+
+---
+
+## Sequencing & Dependencies
+
+```
+Phase 1 (boundary data) ──────────────────────────────── gating
+                          ↓
+Phase 2 (data model) ──── can start in parallel with Phase 1
+                          ↓
+Phase 3 (UnitMap) ──────── requires Phase 1 complete for real paths
+                   │         (can build with placeholder rect shapes while waiting)
+Phase 4 (MapTab) ──┘─────── requires Phase 3
+Phase 5 (Nav) ───────────── requires Phase 4
+Phase 6 (Tests) ─────────── requires Phase 2
+```
+
+Phases 2, 5, and 6 can all be built while waiting for Phase 1 geometry data.
+`UnitMap` can be developed using placeholder `<rect>` shapes (or the crude bounding
+boxes from Phase 1 Option B) and swapped to real paths once geometry is ready.
+
+---
+
+## Known Constraints
+
+- **No new runtime dependencies.** `window.print()` handles PDF export; SVG handles
+  rendering. No Leaflet, Mapbox, D3, or html2canvas.
+- **Prairie units and CSP** have no seed data (see Odds Fix Plan scope note).
+  Their polygons can still be rendered in a "no data" style (surface-2 fill, no label).
+- **Geometry projection** (Phase 1 GeoJSON → SVG paths) is done once at data-prep
+  time, not at runtime. The baked SVG paths are what ships in the bundle.
+- **Antlerless and Any Elk** units occupy different geographic footprints in places —
+  some H2 sub-units (H2B–H2J) carve up areas that appear as a single H2A any-elk
+  polygon. Both sets must be fully mapped.
+- **Print dialog UX** — `window.print()` opens the OS print dialog. The user selects
+  "Save as PDF" or a PDF printer. This is standard browser behavior and needs no
+  special instructions beyond a tooltip on the button.
+
+---
+
+## Reference Links
+
+- GFP Elk Hunting Unit Experience App (live): https://experience.arcgis.com/experience/bfdaf6908845480a88781302af47505b
+- GFP Any Elk Units PDF (2022-2023): https://gfp.sd.gov/UserDocs/nav/PRO_2022-2023_Black_Hills_Any_Elk_Map.pdf
+- GFP Antlerless Units PDF (2022-2023): https://gfp.sd.gov/UserDocs/nav/PRO_2022-2023__Black_Hills_Antlerless_Elk_Map.pdf
+- SD GFP ArcGIS REST root: https://gfpgis.sd.gov/arcgis/rest/services/
+- Known Prairie Elk FeatureServer layer: https://gfpgis.sd.gov/arcgis/rest/services/Wildlife/HuntPlanner_layers/FeatureServer/12
+
+---
+
+---
+
+# 🐛 Odds Accuracy Fix Plan
+
+**Status:** Not started | Identified: 2026-04-11
+
+Discovered during regulatory audit: two bugs in `calcOdds()` cause every displayed
+odds percentage to be materially wrong. These must be fixed before the app is useful
+for draw decisions.
+
+---
+
+## Background
+
+### How SD GFP draws work
+GFP runs a weighted lottery per pool:
+1. Each applicant gets `(points + 1)³` entries placed in the pool's hat
+2. Draws are run `tagsAvailable` times (without replacement)
+3. Each draw picks one entry; that applicant wins a tag and is removed
+
+### The correct odds formula
+```
+P(drawing a tag) = 1 − ((totalEntries − userEntries) / totalEntries)^tagsAvailable
+```
+
+For practical purposes (when odds are not near 100%), this simplifies to:
+```
+P ≈ userEntries × tagsAvailable / totalEntries
+```
+
+Where `totalEntries = poolApplicants × avgEntriesPerApplicant` (the existing approximation).
+
+---
+
+## Fix 1 — Add `tagsAvailable` to `calcOdds()` ✅ COMPLETE
+
+**File:** `src/modules/odds-calculator.ts`  
+**File:** `src/components/OddsTable.tsx`  
+**File:** `tests/unit/odds-calculator.test.ts`
+
+### Root cause
+`calcOdds(userPoints, pool, poolApplicants)` computes the probability of winning
+a **single** draw from the pool, but never multiplies by `tagsAvailable`. The formula
+currently returns `userEntries / totalEntries × 100`, which is off by a factor of
+exactly `tagsAvailable`.
+
+Real 2025 examples showing the error (user with 11 points, 10+ pool):
+
+| Unit | Tags | Applicants | App Shows | Correct | Error |
+|------|------|-----------|-----------|---------|-------|
+| H2A  | 248  | 3,387     | 0.02%     | 5.76%   | 248× too low |
+| H1A  | 55   | 382       | 0.21%     | 11.32%  | 55× too low |
+| H3A  | 39   | 472       | 0.17%     | 6.50%   | 39× too low |
+| H7A  | 20   | 99        | 0.79%     | 15.89%  | 20× too low |
+
+### Changes required
+
+#### `src/modules/odds-calculator.ts`
+
+1. **Add `tagsAvailable` parameter to `calcOdds()`**
+   - Old signature: `calcOdds(userPoints, pool, poolApplicants)`
+   - New signature: `calcOdds(userPoints, pool, poolApplicants, tagsAvailable)`
+
+2. **Update formula inside `calcOdds()`**
+   - Old: `const odds = (userEntries / totalPoolEntries) * 100`
+   - New: `const odds = (userEntries * tagsAvailable / totalPoolEntries) * 100`
+   - Cap at 100% as before
+
+3. **Update JSDoc comment** to document the new parameter and corrected formula
+
+#### `src/components/OddsTable.tsx`
+
+Two `calcOdds()` calls in the `useMemo` block (lines ~54 and ~65) need `tagsAvailable` added:
+
+- Line ~54 (current year odds):
+  ```ts
+  // Before
+  const odds = calcOdds(userPoints, userPool, poolData.applicants);
+  // After
+  const odds = calcOdds(userPoints, userPool, poolData.applicants, poolData.tagsAvailable);
+  ```
+
+- Line ~65 (historical odds, inside `.map()`):
+  ```ts
+  // Before
+  oddsPercent: calcOdds(userPoints, userPool, hp.applicants),
+  // After
+  oddsPercent: calcOdds(userPoints, userPool, hp.applicants, hp.tagsAvailable),
+  ```
+
+#### `tests/unit/odds-calculator.test.ts`
+
+Update the existing `calcOdds` describe block:
+
+1. **Update `'calculates odds for 11 points in 10+ pool'`** — add `tagsAvailable` arg and correct expected value:
+   ```ts
+   // With tagsAvailable = 200, 4320 applicants:
+   // totalEntries = 4320 × 2197 = 9,489,840
+   // odds = (1728 × 200 / 9,489,840) × 100 ≈ 3.644%
+   const odds = calcOdds(11, '10plus', 4320, 200);
+   expect(odds).toBeCloseTo(3.644, 2);
+   ```
+
+2. **Add test: `'scales linearly with tagsAvailable'`**
+   ```ts
+   const oddsOneTag = calcOdds(11, '10plus', 4320, 1);
+   const oddsTenTags = calcOdds(11, '10plus', 4320, 10);
+   expect(oddsTenTags).toBeCloseTo(oddsOneTag * 10, 4);
+   ```
+
+3. **Update `'caps odds at 100%'`** — add `tagsAvailable` arg:
+   ```ts
+   const odds = calcOdds(25, '15plus', 1, 999);
+   expect(odds).toBeLessThanOrEqual(100);
+   ```
+
+4. **Update `'scales with fewer applicants'`** and **`'increases with more user points'`** — add a `tagsAvailable` value (e.g. `50`) to each call.
+
+---
+
+## Fix 2 — Zero-Applicant Pools Should Show Guaranteed Odds ✅ COMPLETE
+
+**File:** `src/modules/odds-calculator.ts`  
+**File:** `tests/unit/odds-calculator.test.ts`
+
+### Root cause
+41 pool entries in the seed data have `applicants = 0` but `tagsAvailable > 0`. This
+happens on antlerless units where demand is low — no one applied in that pool, but
+tags were offered. The current formula returns `0%` because `totalEntries = 0 × avg = 0`.
+The correct result is `100%`: if you apply and no one else in your pool did, you're
+guaranteed a tag.
+
+Units affected (examples):
+- H4A 2025 any_elk 10+ pool: 15 tags, **4 applicants** → more tags than people → should show ~100%  
+- H2B 2025 antlerless 2+ pool: 88 tags, **73 applicants** → over-allocated → should show ~100%
+- H1B 2023 antlerless 10+ pool: 52 tags, **0 applicants** → guaranteed → should show 100%
+- Many H3x, H4B, H9B antlerless units 2023–2025 similarly over-allocated
+
+### Changes required
+
+#### `src/modules/odds-calculator.ts`
+
+Add a guard at the top of `calcOdds()` **before** the existing `poolApplicants <= 0` check:
+
+```ts
+// Tags available but no applicants → guaranteed draw if you apply
+if (poolApplicants === 0 && tagsAvailable > 0) {
+  return 100;
+}
+
+// Tags available but over-allocated (more tags than expected entrants)
+// Cap is already handled by Math.min(..., 100) at the end
+```
+
+No additional guard needed for the over-allocated case (e.g. 88 tags, 73 applicants)
+because `Math.min(odds, 100)` already caps the result at 100%.
+
+#### `tests/unit/odds-calculator.test.ts`
+
+Add a new describe-level test or add cases inside the existing `calcOdds` block:
+
+1. **`'returns 100 when 0 applicants and tags are available'`**
+   ```ts
+   expect(calcOdds(11, '10plus', 0, 52)).toBe(100);
+   expect(calcOdds(0, '0plus', 0, 10)).toBe(100);
+   ```
+
+2. **`'returns 0 when 0 applicants and 0 tags available'`**
+   ```ts
+   expect(calcOdds(11, '10plus', 0, 0)).toBe(0);
+   ```
+
+3. **`'caps at 100% when tags exceed expected entries'`**
+   ```ts
+   // 88 tags, 73 applicants in 2+ pool (more tags than people)
+   const odds = calcOdds(5, '2plus', 73, 88);
+   expect(odds).toBe(100);
+   ```
+
+---
+
+## Fix 3 — Update Formula Comment in Codebase ✅ COMPLETE
+
+**File:** `src/modules/odds-calculator.ts`
+
+Update the module-level doc comment at the top of the file:
+```ts
+// Old:
+// - Odds: (user_entries / total_pool_entries) × 100
+
+// New:
+// - Odds: (user_entries × tagsAvailable / total_pool_entries) × 100
+// - Special case: 0 applicants with available tags → 100% (guaranteed draw)
+```
+
+---
+
+## Affected Files Summary — IMPLEMENTATION COMPLETE
+
+**Completion Date:** 2026-04-11
+
+| File | Change | Status |
+|------|--------|--------|
+| `src/modules/odds-calculator.ts` | Add `tagsAvailable` param; fix formula; add 0-applicant guard; update comments | ✅ Done |
+| `src/components/OddsTable.tsx` | Pass `poolData.tagsAvailable` and `hp.tagsAvailable` to both `calcOdds()` calls | ✅ Done |
+| `tests/unit/odds-calculator.test.ts` | Update all `calcOdds` test cases to use corrected formula and expected values | ✅ Done |
+| `tests/integration/workflow.test.ts` | Update all `calcOdds` calls with `tagsAvailable` parameter and corrected expectations | ✅ Done |
+
+**Test Results:** All 31 tests passing (10 hooks + 15 odds-calculator + 6 integration)  
+**Build:** ✅ Production build successful  
+**TypeScript:** ✅ No type errors
+
+### Implementation Summary
+
+1. **Fixed `calcOdds()` formula:** Now includes `tagsAvailable` parameter
+   - Old: `(user_entries / total_pool_entries) × 100`
+   - New: `(user_entries × tagsAvailable / total_pool_entries) × 100`
+
+2. **Fixed zero-applicant handling:** Returns 100% (guaranteed draw) instead of 0%
+
+3. **Updated all test expectations:** Corrected expected odds percentages to match new formula
+   - Example: H2A with 11 points now shows ~5.46% instead of 0.02% (248× improvement)
+
+4. **Deleted stale file:** Removed `src/modules/odds-calculator.js` (compiled file was shadowing .ts)
+
+The fix ensures odds calculations are accurate per GFP methodology. Next phase: Unit Map feature.
+
+---
+
+## Verification Targets (post-fix)
+
+After the fix, spot-check these against known 2025 GFP data:
+
+| Unit | Pool | Tags | Applicants | Expected Odds (11 pts) |
+|------|------|------|-----------|------------------------|
+| H2A  | 10+  | 248  | 3,387     | ~5.8% |
+| H1A  | 10+  | 55   | 382       | ~11.3% |
+| H3A  | 10+  | 39   | 472       | ~6.5% |
+| H7A  | 10+  | 20   | 99        | ~15.9% |
+| H4A  | 10+  | 15   | 4         | 100% (over-allocated) |
+| H9A  | 10+  | 7    | 4         | 100% (over-allocated) |
+| H1B  | 10+  | 52   | 0         | 100% (no applicants) |
+
+---
+
+## Out of Scope (Data Gaps — Separate Task)
+
+The following units are defined in `elk-units.ts` but have no seed data for 2023–2025.
+These are **not** a code bug — the odds logic will work correctly once data is added.
+Verify against the 2025 GFP elk PDF whether these units were active:
+
+- **H6A, H6B** — Black Hills unit H6 (any elk and antlerless)
+- **H11A, H11B, H11C, H11D, H11E** — Black Hills unit H11 (antlerless only?)
+- **9A, 11A, 11B, 15A, 15B, 27A, 27B** — Prairie elk units
+- **CSP** — Custer State Park (15+ / 10+ / 0+ pool structure, different from Black Hills)
+
+If any were active, add records to `src/data/seed-draw-data.ts` using the same
+format as existing records. CSP requires additional attention since it uses the
+15+ pool which Black Hills units do not.

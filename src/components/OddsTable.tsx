@@ -51,7 +51,7 @@ function OddsTableComponent({ records, userPoints, userTagType }: OddsTableProps
         return; // User didn't qualify in this draw
       }
 
-      const odds = calcOdds(userPoints, userPool, poolData.applicants);
+      const odds = calcOdds(userPoints, userPool, poolData.applicants, poolData.tagsAvailable);
 
       // Collect historical odds
       const historicalOdds = unitRecords
@@ -62,7 +62,7 @@ function OddsTableComponent({ records, userPoints, userTagType }: OddsTableProps
 
           return {
             year: record.year,
-            oddsPercent: calcOdds(userPoints, userPool, hp.applicants),
+            oddsPercent: calcOdds(userPoints, userPool, hp.applicants, hp.tagsAvailable),
             applicants: hp.applicants,
             tagsAvailable: hp.tagsAvailable,
             lowestPointDrawn: hp.lowestPointDrawn,

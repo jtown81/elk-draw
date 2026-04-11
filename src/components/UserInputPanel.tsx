@@ -6,8 +6,7 @@
  */
 
 import { useUserConfig } from '@hooks/useUserConfig';
-import { getQualifyingPool } from '@modules/odds-calculator';
-import { calcEntries } from '@modules/odds-calculator';
+import { getQualifyingPool, calcEntries, getPoolAllocationPct } from '@modules/odds-calculator';
 
 interface UserInputPanelProps {
   userId: string;
@@ -25,6 +24,10 @@ export function UserInputPanel({ userId }: UserInputPanelProps) {
 
   const qualifyingPool = getQualifyingPool(config.preferencePoints);
   const userEntries = calcEntries(config.preferencePoints);
+  // BH units get 30%/15%/5%; CSP gets 34%/33%/33% — show BH as default
+  // since 95%+ of units are Black Hills; pool allocation note shown in info strip
+  const bhAllocationPct = getPoolAllocationPct(qualifyingPool, 'blackhills');
+  const cspAllocationPct = getPoolAllocationPct(qualifyingPool, 'csp');
 
   return (
     <div className="bg-surface border border-border rounded-lg p-6 mb-6">
@@ -107,9 +110,19 @@ export function UserInputPanel({ userId }: UserInputPanelProps) {
             <div className="text-xs font-heading text-parchment uppercase tracking-wider">
               Pool Share
             </div>
-            <div className="text-lg font-display text-gold mt-2">
-              33%
-            </div>
+            {bhAllocationPct > 0 ? (
+              <div className="text-lg font-display text-gold mt-2">
+                {bhAllocationPct}%
+                {cspAllocationPct > 0 && cspAllocationPct !== bhAllocationPct && (
+                  <span className="text-xs font-heading text-parchment ml-1">
+                    / {cspAllocationPct}%
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm font-heading text-parchment mt-2">N/A</div>
+            )}
+            <div className="text-xs text-bark mt-1">BH / CSP</div>
           </div>
           <div className="bg-surface-2 border border-border rounded-lg p-3">
             <div className="text-xs font-heading text-parchment uppercase tracking-wider">
@@ -135,7 +148,11 @@ export function UserInputPanel({ userId }: UserInputPanelProps) {
             <strong>🏹 How it works:</strong> You qualify for the {POOL_LABELS[qualifyingPool]}.
           </p>
           <p>
-            Your {userEntries.toLocaleString()} lottery entries compete against other applicants in this pool.
+            GFP cubes your entries: ({config.preferencePoints}+1)³ = {userEntries.toLocaleString()} lottery entries.
+          </p>
+          <p>
+            Black Hills: {bhAllocationPct}% of tags go to this pool.
+            {cspAllocationPct > 0 ? ` CSP: ${cspAllocationPct}%.` : ''}
           </p>
         </div>
       </div>
