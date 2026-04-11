@@ -18,30 +18,31 @@ show_menu() {
     echo "Select a build scenario:"
     echo ""
     echo "  1) Development Server (with hot reload)"
-    echo "  2) Production Build Only"
-    echo "  3) Production Build + Preview"
-    echo "  4) Run All Tests"
-    echo "  5) Run Tests (watch mode)"
-    echo "  6) Type Check"
-    echo "  7) Clean Build (delete dist/ and rebuild)"
-    echo "  8) Full Build Pipeline (test + typecheck + build)"
-    echo "  9) Full Build Pipeline + Start Server"
+    echo "  2) Kill Dev Server (port 3456)"
+    echo "  3) Production Build Only"
+    echo "  4) Production Build + Preview"
+    echo "  5) Run All Tests"
+    echo "  6) Run Tests (watch mode)"
+    echo "  7) Type Check"
+    echo "  8) Clean Build (delete dist/ and rebuild)"
+    echo "  9) Full Build Pipeline (test + typecheck + build)"
+    echo " 10) Full Build Pipeline + Start Server"
     echo ""
     echo "  Docker:"
-    echo " 10) Docker: Build Image"
-    echo " 11) Docker: Build + Tag + Push to ghcr.io"
-    echo " 12) Docker: Push latest to ghcr.io (after manual build)"
-    echo " 13) Docker: Start Container (docker compose up)"
-    echo " 14) Docker: Stop Container (docker compose down)"
-    echo " 15) Docker: View Logs"
+    echo " 11) Docker: Build Image"
+    echo " 12) Docker: Build + Tag + Push to ghcr.io"
+    echo " 13) Docker: Push latest to ghcr.io (after manual build)"
+    echo " 14) Docker: Start Container (docker compose up)"
+    echo " 15) Docker: Stop Container (docker compose down)"
+    echo " 16) Docker: View Logs"
     echo ""
     echo "  Git:"
-    echo " 16) Git: Commit (stage all + prompt for message)"
-    echo " 17) Git: Commit + Push"
+    echo " 17) Git: Commit (stage all + prompt for message)"
+    echo " 18) Git: Commit + Push"
     echo ""
-    echo " 18) Exit"
+    echo " 19) Exit"
     echo ""
-    read -p "Enter your choice (1-18): " choice
+    read -p "Enter your choice (1-19): " choice
 }
 
 # Function to run dev server
@@ -51,6 +52,23 @@ run_dev() {
     echo "Visit: http://localhost:3456"
     echo ""
     pnpm dev
+}
+
+# Function to kill dev server
+kill_dev_server() {
+    echo ""
+    echo "Killing development server on port 3456..."
+
+    # Try to kill process on port 3456
+    PID=$(lsof -ti:3456)
+    if [ -z "$PID" ]; then
+        echo "⚠️  No process found on port 3456"
+        return 1
+    fi
+
+    kill -9 $PID 2>/dev/null
+    echo "✓ Killed process $PID on port 3456"
+    echo ""
 }
 
 # Function to build production
@@ -315,60 +333,63 @@ case $choice in
         run_dev
         ;;
     2)
-        run_build
+        kill_dev_server
         ;;
     3)
-        run_build_and_preview
+        run_build
         ;;
     4)
-        run_tests
+        run_build_and_preview
         ;;
     5)
-        run_tests_watch
+        run_tests
         ;;
     6)
-        run_typecheck
+        run_tests_watch
         ;;
     7)
-        run_clean_build
+        run_typecheck
         ;;
     8)
-        run_full_pipeline
+        run_clean_build
         ;;
     9)
-        run_full_pipeline_and_serve
+        run_full_pipeline
         ;;
     10)
-        docker_build
+        run_full_pipeline_and_serve
         ;;
     11)
-        docker_build_and_push
+        docker_build
         ;;
     12)
-        docker_push
+        docker_build_and_push
         ;;
     13)
-        docker_start
+        docker_push
         ;;
     14)
-        docker_stop
+        docker_start
         ;;
     15)
-        docker_logs
+        docker_stop
         ;;
     16)
-        git_commit
+        docker_logs
         ;;
     17)
-        git_commit_and_push
+        git_commit
         ;;
     18)
+        git_commit_and_push
+        ;;
+    19)
         echo ""
         echo "Goodbye!"
         exit 0
         ;;
     *)
-        echo "Invalid choice. Please enter a number between 1-18."
+        echo "Invalid choice. Please enter a number between 1-19."
         exit 1
         ;;
 esac
