@@ -1,18 +1,22 @@
 /**
  * South Dakota Elk Draw Analyzer — Main App
  *
- * Two-tab layout with account management:
+ * Three-tab layout with account management:
  * - My Odds: Query draw odds for entered data
  * - Data: Read-only draw statistics
+ * - Map: Interactive unit map with odds visualization
  */
 
 import { useState } from 'react';
 import { useUserAccount } from '@hooks/useUserAccount';
+import { useUserConfig } from '@hooks/useUserConfig';
 import { AppHeader } from '@components/AppHeader';
 import { OddsTab } from '@components/OddsTab';
 import { DrawDataTab } from '@components/DrawDataTab';
+import { MapTab } from '@components/MapTab';
+import { SEED_DRAW_DATA } from '@data/seed-draw-data';
 
-type TabName = 'odds' | 'data';
+type TabName = 'odds' | 'data' | 'map';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabName>('odds');
@@ -147,7 +151,27 @@ export default function App() {
         {activeTab === 'data' && activeUserId && (
           <DrawDataTab userId={activeUserId} accountName={activeAccount?.name || 'Unknown'} />
         )}
+
+        {activeTab === 'map' && activeUserId && (
+          <MapTabWithConfig userId={activeUserId} />
+        )}
       </main>
     </div>
+  );
+}
+
+/**
+ * Wrapper component for MapTab that fetches user config
+ */
+function MapTabWithConfig({ userId }: { userId: string }) {
+  const { config, setTagTypePreference } = useUserConfig(userId);
+
+  return (
+    <MapTab
+      records={SEED_DRAW_DATA}
+      userPoints={config.preferencePoints}
+      userTagType={config.tagType}
+      setUserTagType={setTagTypePreference}
+    />
   );
 }

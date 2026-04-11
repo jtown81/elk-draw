@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import type { UserAccount } from '@models/draw';
 
-type TabName = 'odds' | 'data';
+type TabName = 'odds' | 'data' | 'map';
 
 interface AppHeaderProps {
   activeTab: TabName;
@@ -100,6 +100,19 @@ export function AppHeader({
                 }`}
               >
                 Data
+              </button>
+              <button
+                onClick={() => onTabChange('map')}
+                role="tab"
+                aria-selected={activeTab === 'map'}
+                aria-controls="map-panel"
+                className={`px-6 py-2 font-heading text-sm uppercase tracking-wide rounded transition-colors min-h-[44px] ${
+                  activeTab === 'map'
+                    ? 'bg-amber-dark text-forest'
+                    : 'text-cream hover:text-gold'
+                }`}
+              >
+                Map
               </button>
             </nav>
 
@@ -461,6 +474,23 @@ export function AppHeader({
           >
             Data
             {activeTab === 'data' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-dark" />
+            )}
+          </button>
+          <div className="w-px bg-border" />
+          <button
+            onClick={() => onTabChange('map')}
+            role="tab"
+            aria-selected={activeTab === 'map'}
+            aria-controls="map-panel"
+            className={`flex-1 flex items-center justify-center font-heading text-xs uppercase tracking-wide transition-colors relative min-h-[56px] ${
+              activeTab === 'map'
+                ? 'text-amber-dark'
+                : 'text-parchment hover:text-cream'
+            }`}
+          >
+            Map
+            {activeTab === 'map' && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-dark" />
             )}
           </button>
