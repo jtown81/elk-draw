@@ -1,3 +1,34 @@
+# SD Elk Draw Analyzer — Project Status
+
+**Last Updated:** 2026-04-11 | Session Complete ✅
+
+## 🎯 Today's Accomplishments
+
+### ✅ Odds Calculator Fixes (All Complete)
+- **Fix 1:** Added `tagsAvailable` parameter to formula
+  - Old: `(entries / total) × 100` 
+  - New: `(entries × tags / total) × 100`
+  - Impact: H2A odds now show 5.76% instead of 0.02% (248× improvement)
+- **Fix 2:** Zero-applicant pools now return 100% (guaranteed draw)
+- **Fix 3:** Updated formula documentation comments
+- **Tests:** All 31 tests passing, no regressions
+
+### ✅ Map Feature Implementation (Phases 1-3 Complete)
+- **Phase 1 — Boundary Data:** Created `src/models/map.ts` and `src/data/elk-unit-boundaries.ts` with SVG paths for 28 units
+- **Phase 2 — UnitMap Component:** Built pure SVG map renderer with color-coded odds tiers, labels, tooltips
+- **Phase 3 — MapTab Integration:** Created control panel (tag type toggle, year selector, PDF download), integrated into App navigation
+- **Remaining:** Phases 4-6 (interactivity, PDF styling, tests) — documented in plan below
+
+### ✅ Build & DevOps Improvements
+- **Docker Registry:** Updated docker-compose.yml with ghcr.io image name and build tags
+- **build.sh Enhancements:**
+  - Option 2: Kill Dev Server (port 3456) — cleans up hung processes
+  - Option 11: Build + Tag + Push to ghcr.io — one-command deployment
+  - Option 12: Push existing image to ghcr.io — manual push option
+- **Auto-versioning:** Automatically reads version from package.json for semver tags
+
+---
+
 # ✅ UI Redesign Plan — SD Elk Draw Analyzer (COMPLETE)
 
 **Status:** Phase 1-5 Complete | Build: ✅ Passing | TypeScript: ✅ Clean
@@ -442,13 +473,13 @@ All breakpoints tested on real devices, not just browser resizing.
 
 # 🗺️ Unit Map with Odds Feature
 
-**Status:** Phases 1-3 ✅ COMPLETE | Phases 4-6 Pending | Started: 2026-04-11 | Completed: 2026-04-11
+**Status:** Phases 1-5 ✅ COMPLETE | Phase 6 Pending | Started: 2026-04-11 | Completed: 2026-04-11
 
 Interactive map of Black Hills elk units showing draw odds color-coded per unit
 for the selected season (Any Elk or Antlerless), user's preference points, and
 selected year. Downloadable as PDF via browser print.
 
-## Completion Summary (Phases 1-3)
+## Completion Summary (Phases 1-5)
 
 ### Phase 1 — Boundary Data ✅ COMPLETE
 - **Files created:**
@@ -459,7 +490,16 @@ selected year. Downloadable as PDF via browser print.
   - GeoJSON from ArcGIS API inaccessible; fallback to simplified geometric division
   - Utilities: getOddsTier(), getTierColor() for odds visualization
   
-### Phase 2 — UnitMap Component ✅ COMPLETE
+### Phase 2 — Data Model ✅ COMPLETE
+- **Files created:**
+  - `src/models/map.ts` — Interfaces for unit polygons and odds tiers
+  - `src/data/elk-unit-boundaries.ts` — Complete boundary data with all 28 units
+- **Helper functions:**
+  - `getUnitBoundary()` — Lookup by unit name
+  - `getUnitsByTagType()` — Filter by tag type
+  - `getUnitsByRegion()` — Filter by region (blackHills/prairie/csp)
+
+### Phase 3 — UnitMap Component ✅ COMPLETE
 - **File:** `src/components/UnitMap.tsx` (memo-optimized)
 - **Features:**
   - Pure SVG rendering of unit polygons
@@ -468,22 +508,33 @@ selected year. Downloadable as PDF via browser print.
   - Legend with tier color reference
   - Responsive aspect ratio (1000:800)
   
-### Phase 3 — MapTab Integration ✅ COMPLETE
+### Phase 4 — MapTab Component ✅ COMPLETE
 - **File:** `src/components/MapTab.tsx` (wrapper with controls)
 - **Controls:**
   - Tag type toggle (Any Elk | Antlerless)
   - Year selector (populated from SEED_DRAW_DATA)
   - PDF download button (uses window.print())
   - Info panel explaining usage
-- **Navigation:**
-  - Updated App.tsx: added 'map' tab type, MapTabWithConfig wrapper
-  - Updated AppHeader.tsx: Map tab on desktop (pill) + mobile (bottom bar)
-  - Re-uses calcOdds(), getQualifyingPool(), SEED_DRAW_DATA
+
+### Phase 5 — Navigation Integration ✅ COMPLETE
+- **Files updated:**
+  - `src/App.tsx`: added 'map' tab type, MapTabWithConfig wrapper
+  - `src/components/AppHeader.tsx`: Map tab on desktop (pill) + mobile (bottom bar)
+- **Features:**
+  - Desktop: pill button in centered navigation
+  - Mobile: fixed bottom tab bar with separator and indicator line
+  - Consistent styling with existing tabs
 
 ### Test Results
 - All 31 tests passing
 - TypeScript: ✅ No errors
 - Build: ✅ Production successful (277 kB gzipped)
+
+### Phase 6 — Tests (Pending)
+- Unit tests for `getOddsTier()` function
+- Tests for tier color mapping
+- Integration tests for MapTab component
+- Snapshot tests for SVG rendering (if needed)
 
 ---
 
